@@ -3,7 +3,6 @@ import Header from './components/Header'
 import ScanForm from './components/ScanForm'
 import ResultsTable from './components/ResultsTable'
 import EmptyState from './components/EmptyState'
-import { MOCK_RESULTS } from './mockData'
 import { ScanResult } from './types'
 
 export default function App() {
@@ -11,17 +10,33 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false)
   const [results, setResults] = useState<ScanResult[]>([])
   const [hasScanned, setHasScanned] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  function handleScan() {
+  async function handleScan() {
     setIsScanning(true)
     setResults([])
+    setError(null)
 
-    // Simulate async API call with 1.5s delay
-    setTimeout(() => {
-      setResults(MOCK_RESULTS)
+    try {
+      const response = await fetch('http://localhost:3001/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ environmentUrl }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error ?? 'Scan failed')
+      }
+
+      const data = await response.json()
+      setResults(data.results)
       setHasScanned(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not connect to backend')
+    } finally {
       setIsScanning(false)
-    }, 1500)
+    }
   }
 
   return (
@@ -42,6 +57,12 @@ export default function App() {
           onChange={setEnvironmentUrl}
           onScan={handleScan}
         />
+
+        {error && (
+          <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         {hasScanned ? (
           <ResultsTable results={results} />
