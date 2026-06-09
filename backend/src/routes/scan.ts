@@ -19,11 +19,14 @@ scanRouter.post('/', async (req: Request, res: Response) => {
     res.json({ results })
   } catch (err: unknown) {
     if (axios.isAxiosError(err)) {
-      console.error('Dataverse error:', err.response?.status, JSON.stringify(err.response?.data))
+      const status = err.response?.status
+      const detail = err.response?.data?.error?.message ?? err.message
+      console.error(`Dataverse ${status}:`, detail)
+      res.status(500).json({ error: `Dataverse error (${status}): ${detail}` })
     } else {
-      console.error('Scan error:', err)
+      const message = err instanceof Error ? err.message : 'Scan failed'
+      console.error('Scan error:', message)
+      res.status(500).json({ error: message })
     }
-    const message = err instanceof Error ? err.message : 'Scan failed'
-    res.status(500).json({ error: message })
   }
 })

@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { ScanResult } from './types'
 
-const DATA_DIR = path.join(__dirname, '../../../data')
+const DATA_DIR = path.join(__dirname, '../../data')
 const DB_PATH = path.join(DATA_DIR, 'scans.json')
 
 export interface ScanRecord {
