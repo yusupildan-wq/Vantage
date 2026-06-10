@@ -1,0 +1,17 @@
+{
+  "name": "Andrews",
+  "environmentUrl": "https://andrews-uat.crm.dynamics.com",
+  "optionSets": [
+    {
+      "type": "local",
+      "entity": "contact",
+      "attribute": "preferredcontactmethodcode",
+      "displayName": "Preferred Method of Contact",
+      "values": [
+        { "value": 1, "label": "Email" },
+        { "value": 2, "label": "Call" },
+        { "value": 3, "label": "Text" }
+      ]
+    }
+  ]
+}

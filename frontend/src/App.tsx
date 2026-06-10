@@ -3,6 +3,7 @@ import Header from './components/Header'
 import ScanForm from './components/ScanForm'
 import ResultsTable from './components/ResultsTable'
 import EmptyState from './components/EmptyState'
+import OptionSetGuard from './components/OptionSetGuard'
 import { ScanResult } from './types'
 
 export default function App() {
@@ -69,6 +70,10 @@ export default function App() {
           <ResultsTable results={results} />
         ) : (
           <EmptyState />
+        )}
+
+        {environmentUrl && (
+          <OptionSetGuard environmentUrl={environmentUrl} />
         )}
       </main>
     </div>
