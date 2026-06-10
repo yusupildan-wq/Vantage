@@ -12,52 +12,73 @@ export default function ScanForm({ environmentUrl, isScanning, onChange, onScan 
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
-        Environment Configuration
-      </h2>
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
-          <label htmlFor="env-url" className="block text-sm font-medium text-gray-700 mb-1">
-            Environment URL
-          </label>
-          <input
-            id="env-url"
-            type="url"
-            placeholder="https://yourorg.crm.dynamics.com"
-            value={environmentUrl}
-            onChange={(e) => onChange(e.target.value)}
-            required
-            disabled={isScanning}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400
-                       focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
-                       disabled:bg-gray-50 disabled:cursor-not-allowed transition"
-          />
-        </div>
-        <div className="flex items-end">
-          <button
-            type="submit"
-            disabled={isScanning || environmentUrl.trim() === ''}
-            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white
-                       hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
-                       disabled:bg-indigo-300 disabled:cursor-not-allowed transition-colors"
-          >
-            {isScanning ? (
-              <>
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                  />
-                </svg>
-                Scanning…
-              </>
-            ) : (
-              'Run Scan'
-            )}
-          </button>
+    <form
+      onSubmit={handleSubmit}
+      className="relative rounded-xl overflow-hidden gradient-top-line"
+      style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+    >
+      <div className="px-6 py-6">
+        <p
+          className="text-xs font-semibold tracking-[0.22em] uppercase mb-5"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          Environment Configuration
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <label
+              htmlFor="env-url"
+              className="block text-xs font-medium tracking-wider uppercase mb-2"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              Environment URL
+            </label>
+            <input
+              id="env-url"
+              type="url"
+              placeholder="https://yourorg.crm.dynamics.com"
+              value={environmentUrl}
+              onChange={(e) => onChange(e.target.value)}
+              required
+              disabled={isScanning}
+              className="w-full rounded-lg px-4 py-3 text-sm transition-all duration-200 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                border: '1px solid var(--border-mid)',
+                color: 'var(--text-primary)',
+                caretColor: 'var(--accent-bright)',
+              }}
+              onFocus={e => { e.currentTarget.style.borderColor = 'rgba(129,140,248,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(91,95,199,0.1)' }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-mid)'; e.currentTarget.style.boxShadow = 'none' }}
+            />
+          </div>
+
+          <div className="flex items-end">
+            <button
+              type="submit"
+              disabled={isScanning || environmentUrl.trim() === ''}
+              className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-white transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-30"
+              style={{
+                backgroundColor: 'var(--accent)',
+                boxShadow: '0 0 24px var(--accent-glow)',
+              }}
+              onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = 'var(--accent-bright)' }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--accent)' }}
+            >
+              {isScanning ? (
+                <>
+                  <svg className="animate-spin h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                  Scanning
+                </>
+              ) : (
+                'Run Scan'
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </form>

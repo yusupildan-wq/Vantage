@@ -5,12 +5,42 @@ interface Props {
   environmentUrl: string
 }
 
+function PillButton({
+  onClick,
+  disabled,
+  active,
+  activeStyle,
+  children,
+}: {
+  onClick: () => void
+  disabled?: boolean
+  active?: boolean
+  activeStyle?: React.CSSProperties
+  children: React.ReactNode
+}) {
+  const base: React.CSSProperties = {
+    backgroundColor: 'var(--bg-elevated)',
+    color: 'var(--text-secondary)',
+    border: '1px solid var(--border-bright)',
+  }
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="px-3 py-2 text-xs font-medium rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+      style={active && activeStyle ? activeStyle : base}
+    >
+      {children}
+    </button>
+  )
+}
+
 export default function OptionSetGuard({ environmentUrl }: Props) {
-  const [results, setResults] = useState<OptionSetCheckResult[] | null>(null)
-  const [clientName, setClientName] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [isRestoring, setIsRestoring] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [results, setResults]               = useState<OptionSetCheckResult[] | null>(null)
+  const [clientName, setClientName]         = useState<string | null>(null)
+  const [isLoading, setIsLoading]           = useState(false)
+  const [isRestoring, setIsRestoring]       = useState(false)
+  const [error, setError]                   = useState<string | null>(null)
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
   const [showMismatchOnly, setShowMismatchOnly] = useState(false)
 
@@ -56,7 +86,7 @@ export default function OptionSetGuard({ environmentUrl }: Props) {
       }
       const data = await resp.json()
       setResults(data.details)
-      setRestoreMessage(`Restored ${data.restored} value(s). ${data.failed > 0 ? `${data.failed} failed.` : ''}`)
+      setRestoreMessage(`Restored ${data.restored} value(s).${data.failed > 0 ? ` ${data.failed} failed.` : ''}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to restore option sets')
     } finally {
@@ -64,118 +94,170 @@ export default function OptionSetGuard({ environmentUrl }: Props) {
     }
   }
 
-  const hasMismatch = results?.some(r => r.status === 'mismatch')
+  const hasMismatch    = results?.some(r => r.status === 'mismatch')
   const visibleResults = showMismatchOnly
     ? results?.filter(r => r.status === 'mismatch' || r.status === 'error')
     : results
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <div
+      className="relative rounded-xl overflow-hidden gradient-top-line-amber"
+      style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+    >
+      {/* Header */}
+      <div
+        className="px-6 py-5 flex flex-wrap items-center justify-between gap-3"
+        style={{ borderBottom: results ? '1px solid var(--border)' : undefined }}
+      >
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Option Set Guard</h3>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Compare protected option set values against what's currently in the environment.
+          <h3 className="font-display font-semibold text-base" style={{ color: 'var(--text-primary)' }}>
+            Option Set Guard
+          </h3>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            Compare protected option set values against the environment.
           </p>
         </div>
+
         <div className="flex gap-2">
           {results && (
-            <button
+            <PillButton
               onClick={() => setShowMismatchOnly(v => !v)}
-              className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors ${
-                showMismatchOnly
-                  ? 'bg-amber-50 text-amber-700 border-amber-300'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
-              }`}
+              active={showMismatchOnly}
+              activeStyle={{
+                backgroundColor: 'rgba(245,158,11,0.07)',
+                color: '#fbbf24',
+                border: '1px solid rgba(245,158,11,0.22)',
+              }}
             >
               {showMismatchOnly ? 'Show All' : 'Mismatches Only'}
-            </button>
+            </PillButton>
           )}
           {results && hasMismatch && (
             <button
               onClick={handleRestore}
               disabled={isRestoring}
-              className="px-4 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 rounded-md"
+              className="px-4 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+              style={{
+                backgroundColor: 'rgba(245,158,11,0.1)',
+                color: '#fbbf24',
+                border: '1px solid rgba(245,158,11,0.25)',
+              }}
             >
-              {isRestoring ? 'Restoring...' : 'Restore All'}
+              {isRestoring ? 'Restoring…' : 'Restore All'}
             </button>
           )}
           <button
             onClick={handleCheck}
             disabled={isLoading || !environmentUrl}
-            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-md"
+            className="px-4 py-2 text-xs font-semibold text-white rounded-lg transition-all disabled:opacity-40"
+            style={{
+              backgroundColor: 'var(--accent)',
+              boxShadow: '0 0 20px var(--accent-glow)',
+            }}
           >
-            {isLoading ? 'Checking...' : 'Check Status'}
+            {isLoading ? 'Checking…' : 'Check Status'}
           </button>
         </div>
       </div>
 
       {error && (
-        <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div
+          className="mx-6 mt-5 rounded-lg px-4 py-3 text-xs"
+          style={{ backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171' }}
+        >
           {error}
         </div>
       )}
 
       {restoreMessage && (
-        <div className="rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+        <div
+          className="mx-6 mt-5 rounded-lg px-4 py-3 text-xs"
+          style={{ backgroundColor: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.15)', color: '#4ade80' }}
+        >
           {restoreMessage}
         </div>
       )}
 
       {results && (
-        <div className="space-y-3">
+        <div className="p-6 space-y-3">
           {clientName && (
-            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">
+            <p className="text-xs font-semibold tracking-[0.2em] uppercase mb-4" style={{ color: 'var(--text-muted)' }}>
               Client: {clientName}
             </p>
           )}
+
           {visibleResults?.map((result, i) => (
-            <div key={i} className="border border-gray-100 rounded-md overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
+            <div
+              key={i}
+              className="rounded-lg overflow-hidden"
+              style={{ border: '1px solid var(--border-mid)' }}
+            >
+              {/* Row header */}
+              <div
+                className="flex items-center justify-between px-4 py-3"
+                style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}
+              >
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-800">{result.displayName}</span>
+                  <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                    {result.displayName}
+                  </span>
                   {result.type === 'global' ? (
-                    <span className="text-xs text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">Global</span>
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full"
+                      style={{ color: 'var(--accent-bright)', backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}
+                    >
+                      Global
+                    </span>
                   ) : (
-                    <span className="text-xs text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">{result.entity}</span>
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full"
+                      style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-bright)' }}
+                    >
+                      {result.entity}
+                    </span>
                   )}
                 </div>
-                {result.status === 'match' && (
-                  <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">All Match</span>
-                )}
-                {result.status === 'mismatch' && (
-                  <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Mismatch</span>
-                )}
-                {result.status === 'error' && (
-                  <span className="text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full">Error</span>
-                )}
+
+                {result.status === 'match'    && <span className="text-xs font-medium px-2.5 py-0.5 rounded-full" style={{ color: '#4ade80', backgroundColor: 'rgba(34,197,94,0.07)',  border: '1px solid rgba(34,197,94,0.18)'  }}>All Match</span>}
+                {result.status === 'mismatch' && <span className="text-xs font-medium px-2.5 py-0.5 rounded-full" style={{ color: '#fbbf24', backgroundColor: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)'  }}>Mismatch</span>}
+                {result.status === 'error'    && <span className="text-xs font-medium px-2.5 py-0.5 rounded-full" style={{ color: '#f87171', backgroundColor: 'rgba(239,68,68,0.07)',   border: '1px solid rgba(239,68,68,0.18)'  }}>Error</span>}
               </div>
+
               {result.status === 'error' ? (
-                <p className="px-4 py-3 text-sm text-red-600">{result.error}</p>
+                <p className="px-4 py-3 text-xs" style={{ color: '#f87171' }}>{result.error}</p>
               ) : (
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-t border-gray-100">
-                      <th className="text-left px-4 py-2 text-xs text-gray-400 font-medium w-16">Value</th>
-                      <th className="text-left px-4 py-2 text-xs text-gray-400 font-medium">Expected</th>
-                      <th className="text-left px-4 py-2 text-xs text-gray-400 font-medium">Current</th>
-                      <th className="px-4 py-2 w-8"></th>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      {['Value', 'Expected', 'Current', ''].map((h, j) => (
+                        <th
+                          key={j}
+                          className={`px-4 py-2.5 font-semibold tracking-wider uppercase text-left ${j === 3 ? 'w-8' : j === 0 ? 'w-16' : ''}`}
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          {h}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {result.values.map((v, j) => (
-                      <tr key={j} className="border-t border-gray-100">
-                        <td className="px-4 py-2 text-gray-500">{v.value}</td>
-                        <td className="px-4 py-2 text-gray-800">{v.expectedLabel}</td>
-                        <td className={`px-4 py-2 ${v.currentLabel === null ? 'text-gray-400 italic' : v.match ? 'text-gray-800' : 'text-amber-700'}`}>
+                      <tr
+                        key={j}
+                        style={{ borderBottom: j < result.values.length - 1 ? '1px solid var(--border)' : undefined }}
+                      >
+                        <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--text-muted)' }}>{v.value}</td>
+                        <td className="px-4 py-2.5"             style={{ color: 'var(--text-secondary)' }}>{v.expectedLabel}</td>
+                        <td
+                          className="px-4 py-2.5"
+                          style={{ color: v.currentLabel === null ? 'var(--text-muted)' : v.match ? 'var(--text-secondary)' : '#fbbf24', fontStyle: v.currentLabel === null ? 'italic' : undefined }}
+                        >
                           {v.currentLabel ?? 'missing'}
                         </td>
-                        <td className="px-4 py-2 text-center">
-                          {v.match ? (
-                            <span className="text-green-500">✓</span>
-                          ) : (
-                            <span className="text-amber-500">✗</span>
-                          )}
+                        <td className="px-4 py-2.5 text-center">
+                          {v.match
+                            ? <span style={{ color: '#4ade80' }}>✓</span>
+                            : <span style={{ color: '#fbbf24' }}>✗</span>}
                         </td>
                       </tr>
                     ))}
