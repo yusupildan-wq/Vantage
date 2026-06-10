@@ -8,7 +8,7 @@ import { checkOptionSets, restoreOptionSets } from '../optionsets'
 
 export const optionSetsRouter = Router()
 
-const CONFIG_DIR = path.join(__dirname, '../../../../config/clients')
+const CONFIG_DIR = path.join(__dirname, '../../../config/clients')
 
 function loadClientConfig(environmentUrl: string): ClientConfig | null {
   if (!fs.existsSync(CONFIG_DIR)) return null
@@ -35,6 +35,7 @@ async function makeDataverseClient(environmentUrl: string) {
 
   return axios.create({
     baseURL: `${environmentUrl.replace(/\/$/, '')}/api/data/v9.2`,
+    timeout: 10000,
     headers: {
       Authorization: `Bearer ${result.accessToken}`,
       'OData-MaxVersion': '4.0',

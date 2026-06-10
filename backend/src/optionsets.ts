@@ -6,13 +6,31 @@ async function fetchLocalOptionSet(
   entity: string,
   attribute: string
 ): Promise<Map<number, string>> {
-  const resp = await client.get(
-    `/EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${attribute}')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$expand=OptionSet`
-  )
-  const options: Array<{
+  const base = `/EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${attribute}')`
+  const types = [
+    'Microsoft.Dynamics.CRM.PicklistAttributeMetadata',
+    'Microsoft.Dynamics.CRM.StatusAttributeMetadata',
+    'Microsoft.Dynamics.CRM.MultiSelectPicklistAttributeMetadata',
+  ]
+
+  let options: Array<{
     Value: number
     Label: { LocalizedLabels: Array<{ Label: string; LanguageCode: number }> }
-  }> = resp.data.OptionSet.Options
+  }> | null = null
+
+  for (const type of types) {
+    try {
+      const resp = await client.get(`${base}/${type}?$expand=OptionSet`)
+      options = resp.data.OptionSet?.Options ?? null
+      if (options) break
+    } catch (err: unknown) {
+      const status = (err as any)?.response?.status
+      if (status !== 404) throw err
+      // 404 means wrong type, try the next one
+    }
+  }
+
+  if (!options) throw new Error(`Could not read option set for ${entity}.${attribute}`)
 
   const map = new Map<number, string>()
   for (const opt of options) {
@@ -127,12 +145,16 @@ export async function checkOptionSets(
 
       results.push({
         displayName: optionSet.displayName,
+        type: optionSet.type,
+        entity: optionSet.entity,
         status: values.some(v => !v.match) ? 'mismatch' : 'match',
         values,
       })
     } catch (err) {
       results.push({
         displayName: optionSet.displayName,
+        type: optionSet.type,
+        entity: optionSet.entity,
         status: 'error',
         values: [],
         error: err instanceof Error ? err.message : 'Unknown error',
