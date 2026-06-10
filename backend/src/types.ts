@@ -71,3 +71,34 @@ export interface ReadinessReport {
   skipped: number
   checks: ReadinessCheck[]
 }
+
+export type DiffStatus = 'match' | 'different' | 'only_source' | 'only_target'
+
+export type ComparisonCategory =
+  | 'Solutions'
+  | 'Environment Variables'
+  | 'Connection References'
+  | 'Cloud Flows'
+
+export interface ComparisonItem {
+  name: string
+  status: DiffStatus
+  sourceValue?: string
+  targetValue?: string
+}
+
+export interface ComparisonSection {
+  category: ComparisonCategory
+  items: ComparisonItem[]
+}
+
+export interface ComparisonReport {
+  sourceEnvironment: string
+  targetEnvironment: string
+  timestamp: string
+  sections: ComparisonSection[]
+  totalMatches: number
+  totalDifferences: number
+  totalSourceOnly: number
+  totalTargetOnly: number
+}

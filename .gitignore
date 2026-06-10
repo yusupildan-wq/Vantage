@@ -1,5 +1,30 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
+build/
+
+# Environment files — never commit credentials
 .env
 .env.local
+.env.*.local
+
+# Runtime data — created automatically
 data/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# TypeScript cache
+*.tsbuildinfo

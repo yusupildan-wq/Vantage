@@ -144,6 +144,7 @@ export default function DashboardPage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 animate-slide-up">
+
           <FeatureCard
             index="01"
             title="Active Layer Scanner"
@@ -190,6 +191,22 @@ export default function DashboardPage() {
               </svg>
             }
             onClick={() => navigate('/readiness')}
+          />
+
+          <FeatureCard
+            index="04"
+            title="Environment Comparison"
+            description="Diff two Dataverse environments side by side to detect configuration drift."
+            detail="Compares solutions, environment variables, connection references, and cloud flows — highlighting what's different, missing, or extra between environments."
+            accentColor="#c084fc"
+            accentGlow="rgba(192,132,252,0.08)"
+            topLine="linear-gradient(90deg, transparent, rgba(192,132,252,0.55), transparent)"
+            icon={
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" style={{ color: '#c084fc' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+              </svg>
+            }
+            onClick={() => navigate('/comparison')}
           />
         </div>
       </main>
