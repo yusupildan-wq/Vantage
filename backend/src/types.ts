@@ -37,6 +37,8 @@ export interface OptionSetValueStatus {
 
 export interface OptionSetCheckResult {
   displayName: string
+  type: 'global' | 'local'
+  entity?: string
   status: 'match' | 'mismatch' | 'error'
   values: OptionSetValueStatus[]
   error?: string

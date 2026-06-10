@@ -12,6 +12,7 @@ export default function OptionSetGuard({ environmentUrl }: Props) {
   const [isRestoring, setIsRestoring] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
+  const [showMismatchOnly, setShowMismatchOnly] = useState(false)
 
   const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
@@ -64,6 +65,9 @@ export default function OptionSetGuard({ environmentUrl }: Props) {
   }
 
   const hasMismatch = results?.some(r => r.status === 'mismatch')
+  const visibleResults = showMismatchOnly
+    ? results?.filter(r => r.status === 'mismatch' || r.status === 'error')
+    : results
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
@@ -75,6 +79,18 @@ export default function OptionSetGuard({ environmentUrl }: Props) {
           </p>
         </div>
         <div className="flex gap-2">
+          {results && (
+            <button
+              onClick={() => setShowMismatchOnly(v => !v)}
+              className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors ${
+                showMismatchOnly
+                  ? 'bg-amber-50 text-amber-700 border-amber-300'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-amber-300'
+              }`}
+            >
+              {showMismatchOnly ? 'Show All' : 'Mismatches Only'}
+            </button>
+          )}
           {results && hasMismatch && (
             <button
               onClick={handleRestore}
@@ -113,10 +129,17 @@ export default function OptionSetGuard({ environmentUrl }: Props) {
               Client: {clientName}
             </p>
           )}
-          {results.map((result, i) => (
+          {visibleResults?.map((result, i) => (
             <div key={i} className="border border-gray-100 rounded-md overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
-                <span className="text-sm font-medium text-gray-800">{result.displayName}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-800">{result.displayName}</span>
+                  {result.type === 'global' ? (
+                    <span className="text-xs text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">Global</span>
+                  ) : (
+                    <span className="text-xs text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">{result.entity}</span>
+                  )}
+                </div>
                 {result.status === 'match' && (
                   <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">All Match</span>
                 )}
