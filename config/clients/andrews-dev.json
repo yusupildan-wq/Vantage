@@ -1,0 +1,373 @@
+{
+  "name": "Andrews",
+  "environmentUrl": "https://andrews-dev.crm.dynamics.com",
+  "optionSets": [
+    {
+      "type": "local",
+      "entity": "contact",
+      "attribute": "gendercode",
+      "displayName": "Gender",
+      "values": [
+        { "value": 1, "label": "Male" },
+        { "value": 2, "label": "Female" },
+        { "value": 3, "label": "I prefer not to answer" }
+      ]
+    },
+    {
+      "type": "local",
+      "entity": "contact",
+      "attribute": "leadsourcecode",
+      "displayName": "Lead Source",
+      "values": [
+        { "value": 1, "label": "Default Value" },
+        { "value": 595360001, "label": "Encoura" },
+        { "value": 595360002, "label": "AEA" },
+        { "value": 595360003, "label": "NAD" },
+        { "value": 595360004, "label": "Common App" },
+        { "value": 595360005, "label": "RFI" },
+        { "value": 595360006, "label": "Legacy CRM" },
+        { "value": 914310000, "label": "Post-Secondary/Education Fair" },
+        { "value": 914310001, "label": "Education Agent" },
+        { "value": 914310002, "label": "Embassy" },
+        { "value": 914310003, "label": "Family/Friend" },
+        { "value": 914310004, "label": "Guidance Counselor/Teacher" },
+        { "value": 914310005, "label": "Internet" },
+        { "value": 914310006, "label": "Magazine/Newspaper" },
+        { "value": 914310007, "label": "Social Media" },
+        { "value": 914310008, "label": "Online Advertising" },
+        { "value": 914310009, "label": "Other" }
+      ]
+    },
+    {
+      "type": "local",
+      "entity": "contact",
+      "attribute": "preferredcontactmethodcode",
+      "displayName": "Preferred Method of Contact",
+      "values": [
+        { "value": 1, "label": "Email" },
+        { "value": 2, "label": "Call" },
+        { "value": 3, "label": "Text" }
+      ]
+    },
+    {
+      "type": "local",
+      "entity": "adx_eventregistration",
+      "attribute": "foundry_allowcommunicationbytextmessage",
+      "displayName": "Allow Communication by Text Message",
+      "values": [
+        { "value": 1, "label": "Yes" },
+        { "value": 2, "label": "No" }
+      ]
+    },
+    {
+      "type": "local",
+      "entity": "contact",
+      "attribute": "grmtr_studentadmittype",
+      "displayName": "Student Type (Contact)",
+      "values": [
+        { "value": 914310000, "label": "Freshman" },
+        { "value": 914310001, "label": "Re-Admit" },
+        { "value": 914310002, "label": "Transfer" },
+        { "value": 914310003, "label": "MLS" },
+        { "value": 914310004, "label": "High School" },
+        { "value": 914310005, "label": "Guest: Course(s) Only" },
+        { "value": 914310006, "label": "Exchange/MOU" },
+        { "value": 914310007, "label": "Aviation Certificate" },
+        { "value": 914310008, "label": "Consortium (ACA or MLS)" },
+        { "value": 914310009, "label": "Teacher Certification" },
+        { "value": 914310010, "label": "Help Me Choose" }
+      ]
+    },
+    {
+      "type": "local",
+      "entity": "contact",
+      "attribute": "mshied_citizenshipstatus",
+      "displayName": "Citizenship Status",
+      "values": [
+        { "value": 494280000, "label": "US Citizen" },
+        { "value": 494280001, "label": "US Permanent Resident" },
+        { "value": 494280002, "label": "International Student" },
+        { "value": 494280003, "label": "Other" }
+      ]
+    },
+    {
+      "type": "local",
+      "entity": "contact",
+      "attribute": "mshied_ethnicgroup",
+      "displayName": "Ethnic Group",
+      "values": [
+        { "value": 595360001, "label": "Two or more races" },
+        { "value": 595360002, "label": "Prefer not to respond" },
+        { "value": 914310000, "label": "Black/African American" },
+        { "value": 914310001, "label": "White/Caucasian" },
+        { "value": 914310002, "label": "Latina/Latino/Latinx/Hispanic" },
+        { "value": 914310003, "label": "Asian/Asian American" },
+        { "value": 914310004, "label": "Native Hawaiian/Pacific Islander" },
+        { "value": 914310005, "label": "American Indian/Alaska Native" }
+      ]
+    },
+    {
+      "type": "local",
+      "entity": "contact",
+      "attribute": "mshied_race_",
+      "displayName": "Race",
+      "values": [
+        { "value": 1, "label": "Black/African American" },
+        { "value": 2, "label": "American Indian/Alaska Native" },
+        { "value": 3, "label": "White/Caucasian" },
+        { "value": 4, "label": "Latina/Latino/Latinx/Hispanic" },
+        { "value": 5, "label": "Asian/Asian American" },
+        { "value": 6, "label": "Native Hawaiian/Pacific Islander" },
+        { "value": 7, "label": "Two or more races" },
+        { "value": 8, "label": "Prefer not to respond" }
+      ]
+    },
+    {
+      "type": "global",
+      "name": "foundry_phonetype",
+      "displayName": "Phone Type",
+      "values": [
+        { "value": 595360001, "label": "Work" },
+        { "value": 595360002, "label": "Other" },
+        { "value": 914310000, "label": "Home" },
+        { "value": 914310001, "label": "Mobile" },
+        { "value": 914310002, "label": "WhatsApp" }
+      ]
+    },
+    {
+      "type": "global",
+      "name": "grmtr_guest_relationship",
+      "displayName": "Guest Relationship",
+      "values": [
+        { "value": 1, "label": "Parent" },
+        { "value": 2, "label": "Legal Guardian" },
+        { "value": 3, "label": "Sibling" },
+        { "value": 4, "label": "Spouse/Partner" },
+        { "value": 5, "label": "Child" },
+        { "value": 6, "label": "Other" }
+      ]
+    },
+    {
+      "type": "local",
+      "entity": "foundry_programapplication",
+      "attribute": "foundry_reviewstatus",
+      "displayName": "Internal Application Status",
+      "values": [
+        { "value": 914310009, "label": "Application in Draft" },
+        { "value": 914310010, "label": "Pending Application Fee" },
+        { "value": 914310012, "label": "Admission Denied" },
+        { "value": 914310045, "label": "Canceled" },
+        { "value": 914310013, "label": "Pending Supplemental Items" },
+        { "value": 914310011, "label": "In Review" },
+        { "value": 914310028, "label": "Portfolio Review" },
+        { "value": 914310029, "label": "Portfolio Approved" },
+        { "value": 914310025, "label": "Portfolio Declined" },
+        { "value": 914310019, "label": "Adjudication Review" },
+        { "value": 914310020, "label": "Adjudication Complete" },
+        { "value": 914310046, "label": "Initial Requirements Met" },
+        { "value": 914310015, "label": "Admission Offered" },
+        { "value": 914310002, "label": "Pending Confirmation Fee" },
+        { "value": 914310038, "label": "Offer Declined by Applicant" },
+        { "value": 914310040, "label": "Withdrawn" },
+        { "value": 914310039, "label": "Offer Accepted by Applicant" },
+        { "value": 914310032, "label": "Waitlisted" },
+        { "value": 914310047, "label": "No Show" },
+        { "value": 914310041, "label": "WL Cleanup Pending" },
+        { "value": 914310042, "label": "WL Cleanup Withdrawn" },
+        { "value": 914310043, "label": "WL Cleanup Confirmed" },
+        { "value": 914310044, "label": "Applicant Withdrawn Cleanup" },
+        { "value": 914310023, "label": "Deferral Requested" },
+        { "value": 914310022, "label": "Deferral In Process" },
+        { "value": 914310016, "label": "Deferral Accepted" },
+        { "value": 914310024, "label": "Deferral Request Denied" },
+        { "value": 914310017, "label": "Refund Requested" },
+        { "value": 914310035, "label": "Refund In Review" },
+        { "value": 914310033, "label": "Refund Declined" },
+        { "value": 914310021, "label": "Refund Request Approved" },
+        { "value": 914310018, "label": "Cancelled/Refunded" },
+        { "value": 914310005, "label": "(Deprecated) Enrolled" },
+        { "value": 914310030, "label": "(Deprecated) GPD Review" },
+        { "value": 914310031, "label": "(Deprecated) GPD Approved" },
+        { "value": 914310026, "label": "(Deprecated) GPD Declined" },
+        { "value": 914310014, "label": "(Deprecated) Admission offered" },
+        { "value": 914310037, "label": "(Deprecated) Deferral Accepted" },
+        { "value": 914310008, "label": "(Deprecated) Accepted" },
+        { "value": 914310000, "label": "(Deprecated) Submitted" },
+        { "value": 914310001, "label": "(Deprecated) Reviewed/Missing Items" },
+        { "value": 914310007, "label": "(Deprecated) Pre-Admitted" },
+        { "value": 914310003, "label": "(Deprecated) Waiting on Student Readiness" },
+        { "value": 914310004, "label": "(Deprecated) Waiting on Payment" },
+        { "value": 914310006, "label": "(Deprecated) Pending/ On Hold" },
+        { "value": 914310027, "label": "(Deprecated) Refund Request Declined" },
+        { "value": 914310036, "label": "(Deprecated) Refund Requested" }
+      ]
+    },
+    {
+      "type": "local",
+      "entity": "foundry_programapplication",
+      "attribute": "statuscode",
+      "displayName": "External Application Status",
+      "values": [
+        { "value": 1, "label": "Application in Draft" },
+        { "value": 914310018, "label": "Application Fee Pending" },
+        { "value": 914310019, "label": "Admission Denied" },
+        { "value": 914310029, "label": "Canceled" },
+        { "value": 914310001, "label": "Pending Supplemental Items" },
+        { "value": 914310020, "label": "In Review" },
+        { "value": 914310046, "label": "Initial Requirements Met" },
+        { "value": 914310028, "label": "Not Eligible" },
+        { "value": 914310009, "label": "Admission Offered" },
+        { "value": 914310004, "label": "Pending Confirmation Fee" },
+        { "value": 914310027, "label": "Offer Declined by Applicant" },
+        { "value": 914310012, "label": "Offer Withdrawn" },
+        { "value": 914310030, "label": "Offer Accepted by Applicant" },
+        { "value": 914310022, "label": "Waitlisted" },
+        { "value": 914310017, "label": "Enrolled" },
+        { "value": 914310032, "label": "Action Required" },
+        { "value": 914310031, "label": "Admission Conditionally Offered" },
+        { "value": 914310015, "label": "Deferral Requested" },
+        { "value": 914310014, "label": "Deferral In Process" },
+        { "value": 914310008, "label": "Deferral Accepted" },
+        { "value": 914310016, "label": "Deferral Request Denied" },
+        { "value": 914310021, "label": "Refund Requested" },
+        { "value": 914310024, "label": "Refund In Review" },
+        { "value": 914310025, "label": "Refund Request Approved" },
+        { "value": 914310026, "label": "Refund Accepted/Initiated" },
+        { "value": 914310033, "label": "Roll-over: Withdrawn" },
+        { "value": 914310034, "label": "Roll-over: Agreed" },
+        { "value": 914310035, "label": "Roll-over: Student Withdrawn" },
+        { "value": 914310000, "label": "(Deprecated) Submitted" },
+        { "value": 914310023, "label": "(Deprecated) Deferral Accepted" },
+        { "value": 914310002, "label": "(Deprecated) Accepted" },
+        { "value": 914310003, "label": "(Deprecated) Ready to Enroll" },
+        { "value": 914310005, "label": "(Deprecated) Waiting on Documentation" },
+        { "value": 914310007, "label": "(Deprecated) Pending/ On Hold" },
+        { "value": 914310010, "label": "(Deprecated) Offer Letter Sent" },
+        { "value": 914310011, "label": "(Deprecated) Offer Accepted" },
+        { "value": 914310013, "label": "(Deprecated) First Steps Completed" }
+      ]
+    },
+    {
+      "type": "local",
+      "entity": "contact",
+      "attribute": "grmtr_applicationreviewstatus",
+      "displayName": "Application Review Status (Contact)",
+      "values": [
+        { "value": 914310009, "label": "Draft" },
+        { "value": 914310010, "label": "Pending Application Fee" },
+        { "value": 914310012, "label": "Declined Not Eligible" },
+        { "value": 914310045, "label": "Cancelled" },
+        { "value": 914310013, "label": "Pending Items" },
+        { "value": 914310011, "label": "In Review" },
+        { "value": 914310028, "label": "Portfolio Review" },
+        { "value": 914310029, "label": "Portfolio Approved" },
+        { "value": 914310025, "label": "Portfolio Declined" },
+        { "value": 914310019, "label": "Adjudication Review" },
+        { "value": 914310020, "label": "Adjudication Complete" },
+        { "value": 914310046, "label": "Initial Requirements Met" },
+        { "value": 914310015, "label": "Pending Acceptance" },
+        { "value": 914310002, "label": "Pending Confirmation Fee" },
+        { "value": 914310038, "label": "Offer Declined" },
+        { "value": 914310040, "label": "Withdrawn" },
+        { "value": 914310039, "label": "Confirmed" },
+        { "value": 914310032, "label": "Waitlisted" },
+        { "value": 914310047, "label": "No Show" },
+        { "value": 914310005, "label": "Enrolled" },
+        { "value": 914310041, "label": "WL Cleanup Pending" },
+        { "value": 914310042, "label": "WL Cleanup Withdrawn" },
+        { "value": 914310043, "label": "WL Cleanup Confirmed" },
+        { "value": 914310044, "label": "Appplicant Withdrawn Cleanup" },
+        { "value": 914310023, "label": "Deferral Requested" },
+        { "value": 914310022, "label": "Deferral In Process" },
+        { "value": 914310016, "label": "Deferral Accepted" },
+        { "value": 914310024, "label": "Deferral Declined" },
+        { "value": 914310017, "label": "Refund Requested" },
+        { "value": 914310035, "label": "Refund In Review" },
+        { "value": 914310033, "label": "Refund Declined" },
+        { "value": 914310021, "label": "Refund Request Approved" },
+        { "value": 914310018, "label": "Cancelled/Refunded" }
+      ]
+    },
+    {
+      "type": "global",
+      "name": "foundry_programapplicationtypes",
+      "displayName": "Program Application Types",
+      "values": [
+        { "value": 914310000, "label": "Graduate Degree Seeking" },
+        { "value": 914310001, "label": "Graduate Non-Degree Seeking" },
+        { "value": 914310002, "label": "Graduate Extension" },
+        { "value": 914310003, "label": "Undergraduate Degree Seeking" },
+        { "value": 914310004, "label": "Undergraduate Non-Degree Seeking" },
+        { "value": 914310005, "label": "Undergraduate Affiliate" }
+      ]
+    },
+    {
+      "type": "global",
+      "name": "foundry_studenttype",
+      "displayName": "Student Type",
+      "values": [
+        { "value": 914310000, "label": "Freshman" },
+        { "value": 914310001, "label": "Re-Admit" },
+        { "value": 914310002, "label": "Transfer" },
+        { "value": 914310003, "label": "MLS" },
+        { "value": 914310004, "label": "High School" },
+        { "value": 914310005, "label": "Guest: Course(s) Only" },
+        { "value": 914310006, "label": "Exchange/MOU" },
+        { "value": 914310007, "label": "Aviation Certificate" },
+        { "value": 914310008, "label": "Consortium (ACA or MLS)" },
+        { "value": 914310009, "label": "Teacher Certification" },
+        { "value": 914310010, "label": "Help Me Choose" }
+      ]
+    },
+    {
+      "type": "global",
+      "name": "foundry_yesnonull",
+      "displayName": "Yes No Null",
+      "values": [
+        { "value": 0, "label": "No" },
+        { "value": 1, "label": "Yes" },
+        { "value": 2, "label": "Unknown" }
+      ]
+    },
+    {
+      "type": "global",
+      "name": "foundry_programapplicationreviewstatus",
+      "displayName": "Program Application Review Status (Global)",
+      "values": [
+        { "value": 914310009, "label": "Draft" },
+        { "value": 914310010, "label": "Pending Application Fee" },
+        { "value": 914310012, "label": "Declined Not Eligible" },
+        { "value": 914310045, "label": "Cancelled" },
+        { "value": 914310013, "label": "Pending Items" },
+        { "value": 914310011, "label": "In Review" },
+        { "value": 914310028, "label": "Portfolio Review" },
+        { "value": 914310029, "label": "Portfolio Approved" },
+        { "value": 914310025, "label": "Portfolio Declined" },
+        { "value": 914310019, "label": "Adjudication Review" },
+        { "value": 914310020, "label": "Adjudication Complete" },
+        { "value": 914310046, "label": "Initial Requirements Met" },
+        { "value": 914310015, "label": "Pending Acceptance" },
+        { "value": 914310002, "label": "Pending Confirmation Fee" },
+        { "value": 914310038, "label": "Offer Declined" },
+        { "value": 914310040, "label": "Withdrawn" },
+        { "value": 914310039, "label": "Confirmed" },
+        { "value": 914310032, "label": "Waitlisted" },
+        { "value": 914310047, "label": "No Show" },
+        { "value": 914310005, "label": "Enrolled" },
+        { "value": 914310041, "label": "WL Cleanup Pending" },
+        { "value": 914310042, "label": "WL Cleanup Withdrawn" },
+        { "value": 914310043, "label": "WL Cleanup Confirmed" },
+        { "value": 914310044, "label": "Appplicant Withdrawn Cleanup" },
+        { "value": 914310023, "label": "Deferral Requested" },
+        { "value": 914310022, "label": "Deferral In Process" },
+        { "value": 914310016, "label": "Deferral Accepted" },
+        { "value": 914310024, "label": "Deferral Declined" },
+        { "value": 914310017, "label": "Refund Requested" },
+        { "value": 914310035, "label": "Refund In Review" },
+        { "value": 914310033, "label": "Refund Declined" },
+        { "value": 914310021, "label": "Refund Request Approved" },
+        { "value": 914310018, "label": "Cancelled/Refunded" }
+      ]
+    }
+  ]
+}
