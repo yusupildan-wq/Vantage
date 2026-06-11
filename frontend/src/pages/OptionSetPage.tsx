@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import OptionSetGuard from '../components/OptionSetGuard'
+import OptionSetComparison from '../components/OptionSetComparison'
 
 export default function OptionSetPage() {
   const [inputUrl, setInputUrl]             = useState('')
@@ -91,6 +92,8 @@ export default function OptionSetPage() {
         </form>
 
         {environmentUrl && <OptionSetGuard environmentUrl={environmentUrl} />}
+
+        <OptionSetComparison />
       </main>
     </>
   )
