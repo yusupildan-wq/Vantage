@@ -102,9 +102,9 @@ export default function OptionSetComparison() {
             onClick={handleCompare}
             disabled={isComparing || !compareSourceUrl.trim() || !compareTargetUrl.trim()}
             className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-white transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
-            style={{ backgroundColor: '#15803d', boxShadow: '0 0 20px rgba(21,128,61,0.25)' }}
-            onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#16a34a' }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#15803d' }}
+            style={{ backgroundColor: '#1d4ed8', boxShadow: '0 0 20px rgba(29,78,216,0.35)' }}
+            onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#2563eb' }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1d4ed8' }}
           >
             {isComparing ? 'Comparing…' : 'Compare Environments'}
           </button>
