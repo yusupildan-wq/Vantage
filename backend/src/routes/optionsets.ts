@@ -91,3 +91,75 @@ optionSetsRouter.post('/restore', async (req: Request, res: Response) => {
     res.status(500).json({ error: detail })
   }
 })
+
+optionSetsRouter.post('/compare', async (req: Request, res: Response) => {
+  const { sourceUrl, targetUrl } = req.body
+  if (!sourceUrl || !targetUrl) {
+    res.status(400).json({ error: 'sourceUrl and targetUrl are required' })
+    return
+  }
+  
+  const sourceConfig = loadClientConfig(sourceUrl)
+  const targetConfig = loadClientConfig(targetUrl)
+  
+  if (!sourceConfig || !targetConfig) {
+    res.status(404).json({ error: 'No client config found for one or both environments' })
+    return
+  }
+  
+  try {
+    const sourceClient = await makeDataverseClient(sourceUrl)
+    const targetClient = await makeDataverseClient(targetUrl)
+    
+    const sourceResults = await checkOptionSets(sourceClient, sourceConfig)
+    const targetResults = await checkOptionSets(targetClient, targetConfig)
+    
+    // Compare results
+    const differences = sourceResults.map(sourceResult => {
+      const targetResult = targetResults.find(tr => tr.displayName === sourceResult.displayName)
+      
+      if (!targetResult) {
+        return {
+          displayName: sourceResult.displayName,
+          type: sourceResult.type,
+          sourceOnly: sourceResult.values,
+          targetOnly: [],
+          different: []
+        }
+      }
+      
+      const sourceValues = new Map(sourceResult.values.map(v => [v.value, v.currentLabel]))
+      const targetValues = new Map(targetResult.values.map(v => [v.value, v.currentLabel]))
+      
+      const sourceOnly = sourceResult.values.filter(v => !targetValues.has(v.value))
+      const targetOnly = targetResult.values.filter(v => !sourceValues.has(v.value))
+      const different = sourceResult.values.filter(v => {
+        const targetLabel = targetValues.get(v.value)
+        return targetLabel && targetLabel !== v.currentLabel
+      }).map(v => ({
+        value: v.value,
+        sourceLabel: v.currentLabel,
+        targetLabel: targetValues.get(v.value)
+      }))
+      
+      return {
+        displayName: sourceResult.displayName,
+        type: sourceResult.type,
+        sourceOnly,
+        targetOnly,
+        different
+      }
+    })
+    
+    res.json({
+      sourceName: sourceConfig.name,
+      targetName: targetConfig.name,
+      differences
+    })
+  } catch (err) {
+    const detail = axios.isAxiosError(err)
+      ? (err.response?.data?.error?.message ?? err.message)
+      : (err instanceof Error ? err.message : 'Failed')
+    res.status(500).json({ error: detail })
+  }
+})
