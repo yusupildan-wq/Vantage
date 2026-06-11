@@ -41,59 +41,94 @@ export default function OptionSetPage() {
         </div>
       </section>
 
-      <main className="max-w-7xl mx-auto px-6 py-10 space-y-5 animate-slide-up">
-        {/* URL form */}
-        <form
-          onSubmit={handleSubmit}
-          className="relative rounded-xl overflow-hidden gradient-top-line-amber"
-          style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
-        >
-          <div className="px-6 py-6">
-            <p className="text-xs font-semibold tracking-[0.22em] uppercase mb-5" style={{ color: 'var(--text-muted)' }}>
-              Environment Configuration
+      <main className="max-w-7xl mx-auto px-6 py-10 animate-slide-up space-y-10">
+
+        {/* ── Section 1: Option Set Guard ── */}
+        <section className="space-y-5">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.24em] uppercase mb-1" style={{ color: '#f59e0b' }}>
+              Section 01
             </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
-                <label htmlFor="os-env-url" className="block text-xs font-medium tracking-wider uppercase mb-2" style={{ color: 'var(--text-secondary)' }}>
-                  Environment URL
-                </label>
-                <input
-                  id="os-env-url"
-                  type="url"
-                  placeholder="https://yourorg.crm.dynamics.com"
-                  value={inputUrl}
-                  onChange={e => setInputUrl(e.target.value)}
-                  required
-                  className="w-full rounded-lg px-4 py-3 text-sm transition-all duration-200 focus:outline-none"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-mid)',
-                    color: 'var(--text-primary)',
-                    caretColor: '#f59e0b',
-                  }}
-                  onFocus={e => { e.currentTarget.style.borderColor = 'rgba(245,158,11,0.4)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.08)' }}
-                  onBlur={e =>  { e.currentTarget.style.borderColor = 'var(--border-mid)';    e.currentTarget.style.boxShadow = 'none' }}
-                />
-              </div>
-              <div className="flex items-end">
-                <button
-                  type="submit"
-                  disabled={inputUrl.trim() === ''}
-                  className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-white transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: '#b45309', boxShadow: '0 0 20px rgba(180,83,9,0.25)' }}
-                  onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#d97706' }}
-                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#b45309' }}
-                >
-                  Set Environment
-                </button>
+            <h2 className="font-display font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>
+              Option Set Guard
+            </h2>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+              Enter an environment URL to check protected option set values and restore any that have drifted.
+            </p>
+          </div>
+
+          {/* URL form */}
+          <form
+            onSubmit={handleSubmit}
+            className="relative rounded-xl overflow-hidden gradient-top-line-amber"
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+          >
+            <div className="px-6 py-6">
+              <p className="text-xs font-semibold tracking-[0.22em] uppercase mb-5" style={{ color: 'var(--text-muted)' }}>
+                Environment Configuration
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <label htmlFor="os-env-url" className="block text-xs font-medium tracking-wider uppercase mb-2" style={{ color: 'var(--text-secondary)' }}>
+                    Environment URL
+                  </label>
+                  <input
+                    id="os-env-url"
+                    type="url"
+                    placeholder="https://yourorg.crm.dynamics.com"
+                    value={inputUrl}
+                    onChange={e => setInputUrl(e.target.value)}
+                    required
+                    className="w-full rounded-lg px-4 py-3 text-sm transition-all duration-200 focus:outline-none"
+                    style={{
+                      backgroundColor: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-mid)',
+                      color: 'var(--text-primary)',
+                      caretColor: '#f59e0b',
+                    }}
+                    onFocus={e => { e.currentTarget.style.borderColor = 'rgba(245,158,11,0.4)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.08)' }}
+                    onBlur={e =>  { e.currentTarget.style.borderColor = 'var(--border-mid)';    e.currentTarget.style.boxShadow = 'none' }}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={inputUrl.trim() === ''}
+                    className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-white transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: '#b45309', boxShadow: '0 0 20px rgba(180,83,9,0.25)' }}
+                    onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#d97706' }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#b45309' }}
+                  >
+                    Set Environment
+                  </button>
+                </div>
               </div>
             </div>
+          </form>
+
+          {environmentUrl && <OptionSetGuard environmentUrl={environmentUrl} />}
+        </section>
+
+        {/* Divider */}
+        <div className="w-full h-px" style={{ background: 'linear-gradient(90deg, transparent, var(--border-bright), transparent)' }} />
+
+        {/* ── Section 2: Environment Comparison ── */}
+        <section className="space-y-5">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.24em] uppercase mb-1" style={{ color: '#f59e0b' }}>
+              Section 02
+            </p>
+            <h2 className="font-display font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>
+              Environment Comparison
+            </h2>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+              Compare option set values between two environments side by side.
+            </p>
           </div>
-        </form>
 
-        {environmentUrl && <OptionSetGuard environmentUrl={environmentUrl} />}
+          <OptionSetComparison />
+        </section>
 
-        <OptionSetComparison />
       </main>
     </>
   )
