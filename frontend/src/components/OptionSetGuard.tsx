@@ -3,6 +3,9 @@ import { OptionSetCheckResult } from '../types'
 
 interface Props {
   environmentUrl: string
+  columnLabels?: { expected: string; current: string }
+  apiEndpoint?: string
+  readOnly?: boolean
 }
 
 function PillButton({
@@ -35,14 +38,20 @@ function PillButton({
   )
 }
 
-export default function OptionSetGuard({ environmentUrl }: Props) {
+export default function OptionSetGuard({ environmentUrl, columnLabels, apiEndpoint, readOnly }: Props) {
   const [results, setResults]               = useState<OptionSetCheckResult[] | null>(null)
   const [clientName, setClientName]         = useState<string | null>(null)
+  const [sourceOfTruth, setSourceOfTruth]   = useState<string | null>(null)
   const [isLoading, setIsLoading]           = useState(false)
   const [isRestoring, setIsRestoring]       = useState(false)
   const [error, setError]                   = useState<string | null>(null)
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
   const [showMismatchOnly, setShowMismatchOnly] = useState(false)
+
+  const labels = columnLabels ?? (sourceOfTruth
+    ? { expected: 'Dev', current: 'Current' }
+    : { expected: 'Expected', current: 'Current' }
+  )
 
   const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
@@ -51,7 +60,8 @@ export default function OptionSetGuard({ environmentUrl }: Props) {
     setError(null)
     setRestoreMessage(null)
     try {
-      const resp = await fetch(`${apiUrl}/api/optionsets/status?environmentUrl=${encodeURIComponent(environmentUrl)}`)
+      const endpoint = apiEndpoint ?? `${apiUrl}/api/optionsets/status`
+      const resp = await fetch(`${endpoint}?environmentUrl=${encodeURIComponent(environmentUrl)}`)
       if (resp.status === 404) {
         setError('No client config found for this environment. Add a config file to config/clients/.')
         return
@@ -62,6 +72,7 @@ export default function OptionSetGuard({ environmentUrl }: Props) {
       }
       const data = await resp.json()
       setClientName(data.clientName)
+      setSourceOfTruth(data.sourceOfTruth ?? null)
       setResults(data.results)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to check option sets')
@@ -116,6 +127,11 @@ export default function OptionSetGuard({ environmentUrl }: Props) {
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
             Compare protected option set values against the environment.
           </p>
+          {sourceOfTruth && (
+            <p className="text-xs mt-1.5 font-mono" style={{ color: 'rgba(245,158,11,0.7)' }}>
+              Source of truth: {sourceOfTruth}
+            </p>
+          )}
         </div>
 
         <div className="flex gap-2">
@@ -132,7 +148,7 @@ export default function OptionSetGuard({ environmentUrl }: Props) {
               {showMismatchOnly ? 'Show All' : 'Mismatches Only'}
             </PillButton>
           )}
-          {results && hasMismatch && (
+          {!readOnly && results && hasMismatch && (
             <button
               onClick={handleRestore}
               disabled={isRestoring}
@@ -229,7 +245,7 @@ export default function OptionSetGuard({ environmentUrl }: Props) {
                 <table className="w-full text-xs">
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['Value', 'Expected', 'Current', ''].map((h, j) => (
+                      {['Value', labels.expected, labels.current, ''].map((h, j) => (
                         <th
                           key={j}
                           className={`px-4 py-2.5 font-semibold tracking-wider uppercase text-left ${j === 3 ? 'w-8' : j === 0 ? 'w-16' : ''}`}

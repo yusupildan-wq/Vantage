@@ -1,6 +1,7 @@
 {
   "name": "Andrews",
   "environmentUrl": "https://andrews-uat.crm.dynamics.com",
+  "sourceOfTruthUrl": "https://andrews-dev.crm.dynamics.com",
   "optionSets": [
     {
       "type": "local",

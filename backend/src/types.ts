@@ -25,6 +25,7 @@ export interface ProtectedOptionSet {
 export interface ClientConfig {
   name: string
   environmentUrl: string
+  sourceOfTruthUrl?: string
   optionSets: ProtectedOptionSet[]
 }
 
