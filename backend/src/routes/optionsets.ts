@@ -5,6 +5,7 @@ import axios from 'axios'
 import { ConfidentialClientApplication } from '@azure/msal-node'
 import { ClientConfig } from '../types'
 import { checkOptionSets, restoreOptionSets } from '../optionsets'
+import { parsePastedContent, comparePastedWithDev } from '../pastecompare'
 
 export const optionSetsRouter = Router()
 
@@ -59,8 +60,11 @@ optionSetsRouter.get('/status', async (req: Request, res: Response) => {
   }
   try {
     const client = await makeDataverseClient(environmentUrl)
-    const results = await checkOptionSets(client, config)
-    res.json({ clientName: config.name, results })
+    const sourceClient = config.sourceOfTruthUrl
+      ? await makeDataverseClient(config.sourceOfTruthUrl)
+      : client
+    const results = await checkOptionSets(client, config, sourceClient)
+    res.json({ clientName: config.name, sourceOfTruth: config.sourceOfTruthUrl ?? environmentUrl, results })
   } catch (err) {
     const detail = axios.isAxiosError(err)
       ? (err.response?.data?.error?.message ?? err.message)
@@ -82,8 +86,35 @@ optionSetsRouter.post('/restore', async (req: Request, res: Response) => {
   }
   try {
     const client = await makeDataverseClient(environmentUrl)
-    const result = await restoreOptionSets(client, config)
+    const sourceClient = config.sourceOfTruthUrl
+      ? await makeDataverseClient(config.sourceOfTruthUrl)
+      : client
+    const result = await restoreOptionSets(client, config, sourceClient)
     res.json({ clientName: config.name, ...result })
+  } catch (err) {
+    const detail = axios.isAxiosError(err)
+      ? (err.response?.data?.error?.message ?? err.message)
+      : (err instanceof Error ? err.message : 'Failed')
+    res.status(500).json({ error: detail })
+  }
+})
+
+optionSetsRouter.get('/doc-vs-dev', async (req: Request, res: Response) => {
+  const { environmentUrl } = req.query
+  if (!environmentUrl || typeof environmentUrl !== 'string') {
+    res.status(400).json({ error: 'environmentUrl query param is required' })
+    return
+  }
+  const config = loadClientConfig(environmentUrl)
+  if (!config) {
+    res.status(404).json({ error: 'No client config found for this environment' })
+    return
+  }
+  try {
+    const client = await makeDataverseClient(environmentUrl)
+    // Always compare config (doc) values against the live environment — no source client
+    const results = await checkOptionSets(client, config)
+    res.json({ clientName: config.name, environmentUrl, results })
   } catch (err) {
     const detail = axios.isAxiosError(err)
       ? (err.response?.data?.error?.message ?? err.message)
@@ -156,6 +187,41 @@ optionSetsRouter.post('/compare', async (req: Request, res: Response) => {
       targetName: targetConfig.name,
       differences
     })
+  } catch (err) {
+    const detail = axios.isAxiosError(err)
+      ? (err.response?.data?.error?.message ?? err.message)
+      : (err instanceof Error ? err.message : 'Failed')
+    res.status(500).json({ error: detail })
+  }
+})
+
+optionSetsRouter.post('/paste-compare', async (req: Request, res: Response) => {
+  const { pastedText, devUrl } = req.body
+  if (!pastedText || !devUrl) {
+    res.status(400).json({ error: 'pastedText and devUrl are required' })
+    return
+  }
+
+  const devConfig = loadClientConfig(devUrl)
+  if (!devConfig) {
+    res.status(404).json({ error: 'No client config found for the dev environment URL' })
+    return
+  }
+
+  const tables = parsePastedContent(pastedText)
+  if (tables.length === 0) {
+    res.status(422).json({
+      error: 'No option set tables found in the pasted content. Make sure you copied a table with a numeric Value column and a Label column.',
+    })
+    return
+  }
+
+  try {
+    const devClient = await makeDataverseClient(devUrl)
+    const results = await comparePastedWithDev(tables, devClient, devConfig)
+    const availableOptionSets = devConfig.optionSets.map(os => os.displayName)
+    const parsedTitles = tables.map(t => t.title || '(untitled)')
+    res.json({ devName: devConfig.name, tablesFound: tables.length, parsedTitles, availableOptionSets, results })
   } catch (err) {
     const detail = axios.isAxiosError(err)
       ? (err.response?.data?.error?.message ?? err.message)

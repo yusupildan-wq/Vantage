@@ -125,7 +125,8 @@ async function publishGlobalOptionSet(client: AxiosInstance, name: string): Prom
 
 export async function checkOptionSets(
   client: AxiosInstance,
-  config: ClientConfig
+  config: ClientConfig,
+  sourceClient?: AxiosInstance
 ): Promise<OptionSetCheckResult[]> {
   const results: OptionSetCheckResult[] = []
 
@@ -136,12 +137,28 @@ export async function checkOptionSets(
           ? await fetchLocalOptionSet(client, optionSet.entity!, optionSet.attribute!)
           : await fetchGlobalOptionSet(client, optionSet.name!)
 
-      const values: OptionSetValueStatus[] = optionSet.values.map(v => ({
-        value: v.value,
-        expectedLabel: v.label,
-        currentLabel: currentValues.get(v.value) ?? null,
-        match: currentValues.get(v.value) === v.label,
-      }))
+      let values: OptionSetValueStatus[]
+
+      if (sourceClient) {
+        const sourceValues =
+          optionSet.type === 'local'
+            ? await fetchLocalOptionSet(sourceClient, optionSet.entity!, optionSet.attribute!)
+            : await fetchGlobalOptionSet(sourceClient, optionSet.name!)
+
+        values = Array.from(sourceValues.entries()).map(([value, label]) => ({
+          value,
+          expectedLabel: label,
+          currentLabel: currentValues.get(value) ?? null,
+          match: currentValues.get(value) === label,
+        }))
+      } else {
+        values = optionSet.values.map(v => ({
+          value: v.value,
+          expectedLabel: v.label,
+          currentLabel: currentValues.get(v.value) ?? null,
+          match: currentValues.get(v.value) === v.label,
+        }))
+      }
 
       results.push({
         displayName: optionSet.displayName,
@@ -167,9 +184,10 @@ export async function checkOptionSets(
 
 export async function restoreOptionSets(
   client: AxiosInstance,
-  config: ClientConfig
+  config: ClientConfig,
+  sourceClient?: AxiosInstance
 ): Promise<{ restored: number; failed: number; details: OptionSetCheckResult[] }> {
-  const checkResults = await checkOptionSets(client, config)
+  const checkResults = await checkOptionSets(client, config, sourceClient)
   let restored = 0
   let failed = 0
 
@@ -218,6 +236,6 @@ export async function restoreOptionSets(
     try { await publishGlobalOptionSet(client, name) } catch { /* non-fatal */ }
   }
 
-  const finalResults = await checkOptionSets(client, config)
+  const finalResults = await checkOptionSets(client, config, sourceClient)
   return { restored, failed, details: finalResults }
 }
