@@ -48,11 +48,17 @@ function PasteVsDevSection() {
     setError(null)
     setData(null)
     try {
-      const resp = await fetch(`${API_URL}/api/optionsets/paste-compare`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pastedText, devUrl: devUrl.trim() }),
-      })
+      let resp: Response
+      try {
+        resp = await fetch(`${API_URL}/api/optionsets/paste-compare`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pastedText, devUrl: devUrl.trim() }),
+        })
+      } catch {
+        setError(`Cannot reach the backend server at ${API_URL}. Make sure the backend is running (cd backend && npm run dev).`)
+        return
+      }
       const json = await resp.json()
       if (!resp.ok) throw new Error(json.error ?? 'Comparison failed')
       setData(json)

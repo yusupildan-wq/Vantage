@@ -61,7 +61,13 @@ export default function OptionSetGuard({ environmentUrl, columnLabels, apiEndpoi
     setRestoreMessage(null)
     try {
       const endpoint = apiEndpoint ?? `${apiUrl}/api/optionsets/status`
-      const resp = await fetch(`${endpoint}?environmentUrl=${encodeURIComponent(environmentUrl)}`)
+      let resp: Response
+      try {
+        resp = await fetch(`${endpoint}?environmentUrl=${encodeURIComponent(environmentUrl)}`)
+      } catch {
+        setError(`Cannot reach the backend server at ${apiUrl}. Make sure the backend is running (cd backend && npm run dev) and your frontend/.env has VITE_API_URL=http://localhost:3001.`)
+        return
+      }
       if (resp.status === 404) {
         setError('No client config found for this environment. Add a config file to config/clients/.')
         return

@@ -19,13 +19,10 @@ if (missing.length > 0) {
 const app = express()
 const PORT = process.env.PORT ?? 3001
 
-const allowedOrigin = process.env.FRONTEND_URL
-app.use(cors({
-  origin: allowedOrigin
-    ? allowedOrigin
-    : (origin, cb) => cb(null, !origin || /^https?:\/\/localhost(:\d+)?$/.test(origin)),
-}))
+app.use(cors())
 app.use(express.json())
+
+app.get('/health', (_req, res) => res.json({ ok: true }))
 
 app.use('/api/scan', scanRouter)
 app.use('/api/scans', historyRouter)
