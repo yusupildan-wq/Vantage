@@ -208,6 +208,22 @@ export default function DashboardPage() {
             }
             onClick={() => navigate('/comparison')}
           />
+
+          <FeatureCard
+            index="05"
+            title="Cloud Flow Monitor"
+            description="See every cloud flow's health at a glance — without clicking through Power Apps."
+            detail="Shows run status, failure count, and the actual error message for every flow in an environment. Click any flow to see its last 10 run attempts."
+            accentColor="#60a5fa"
+            accentGlow="rgba(96,165,250,0.08)"
+            topLine="linear-gradient(90deg, transparent, rgba(96,165,250,0.55), transparent)"
+            icon={
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" style={{ color: '#60a5fa' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+              </svg>
+            }
+            onClick={() => navigate('/flows')}
+          />
         </div>
       </main>
     </>

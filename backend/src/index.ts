@@ -7,6 +7,7 @@ import { optionSetsRouter } from './routes/optionsets'
 import { readinessRouter } from './routes/readiness'
 import { comparisonRouter } from './routes/comparison'
 import { remediationRouter } from './routes/remediation'
+import { flowsRouter } from './routes/flows'
 
 const REQUIRED_ENV = ['AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET']
 const missing = REQUIRED_ENV.filter(k => !process.env[k])
@@ -30,6 +31,7 @@ app.use('/api/optionsets', optionSetsRouter)
 app.use('/api/readiness', readinessRouter)
 app.use('/api/comparison', comparisonRouter)
 app.use('/api/remediation', remediationRouter)
+app.use('/api/flows', flowsRouter)
 
 app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`)

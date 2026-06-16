@@ -5,6 +5,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/optionsets':  'Option Set Guard',
   '/readiness':   'Deployment Readiness Checker',
   '/comparison':  'Environment Comparison',
+  '/flows':       'Cloud Flow Monitor',
 }
 
 export default function Header() {

@@ -7,6 +7,7 @@ import ScanPage from './pages/ScanPage'
 import OptionSetPage from './pages/OptionSetPage'
 import ReadinessPage from './pages/ReadinessPage'
 import ComparisonPage from './pages/ComparisonPage'
+import FlowsPage from './pages/FlowsPage'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/optionsets"  element={<OptionSetPage />} />
         <Route path="/readiness"   element={<ReadinessPage />} />
         <Route path="/comparison"  element={<ComparisonPage />} />
+        <Route path="/flows"       element={<FlowsPage />} />
       </Routes>
       <footer
         className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-between"
