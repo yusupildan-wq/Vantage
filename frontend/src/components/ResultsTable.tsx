@@ -15,14 +15,17 @@ export default function ResultsTable({ results }: ResultsTableProps) {
   const [activeFilter, setActiveFilter] = useState<Filter>('All')
   const [hideClean, setHideClean] = useState(true)
   const [showAll, setShowAll] = useState(false)
+  const [search, setSearch] = useState('')
 
   const activeCount    = results.filter(r => r.status === 'Active Layer').length
   const unmanagedCount = results.filter(r => r.status === 'Unmanaged').length
   const cleanCount     = results.length - activeCount - unmanagedCount
 
+  const q = search.toLowerCase()
   const filtered = results
     .filter(r => activeFilter === 'All' || r.status === activeFilter)
     .filter(r => !hideClean || r.status !== 'Base Layer')
+    .filter(r => !q || r.componentName.toLowerCase().includes(q) || r.componentType.toLowerCase().includes(q))
 
   const visible = showAll ? filtered : filtered.slice(0, DEFAULT_VISIBLE)
   const hasMore = filtered.length > DEFAULT_VISIBLE
@@ -46,6 +49,32 @@ export default function ResultsTable({ results }: ResultsTableProps) {
           </p>
         </div>
 
+        <div className="flex items-center gap-4">
+
+        {/* Export CSV */}
+        <button
+          onClick={() => {
+            const headers = ['Component', 'Type', 'Status', 'Message']
+            const rows = filtered.map(r => [r.componentName, r.componentType, r.status, r.message].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+            const csv = [headers.join(','), ...rows].join('\n')
+            const blob = new Blob([csv], { type: 'text/csv' })
+            const a = document.createElement('a')
+            a.href = URL.createObjectURL(blob)
+            a.download = `active-layer-scan-${new Date().toISOString().slice(0, 10)}.csv`
+            a.click()
+            URL.revokeObjectURL(a.href)
+          }}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
+          style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)' }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'var(--border-bright)' }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border-mid)' }}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+          Export CSV
+        </button>
+
         {/* Stats */}
         <div className="flex items-center gap-6">
           {[
@@ -64,58 +93,79 @@ export default function ResultsTable({ results }: ResultsTableProps) {
             </div>
           ))}
         </div>
+        </div>
       </div>
 
-      {/* Filter toolbar */}
+      {/* Search + filter toolbar */}
       <div
-        className="px-6 py-3 flex items-center justify-between gap-3"
+        className="px-6 py-3 flex flex-wrap items-center justify-between gap-3"
         style={{ borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)' }}
       >
-        <div className="flex gap-1.5">
-          {FILTERS.map(f => {
-            const isActive = activeFilter === f
-            return (
-              <button
-                key={f}
-                onClick={() => { setActiveFilter(f); setShowAll(false) }}
-                className="px-3 py-1 text-xs font-medium rounded-full transition-all duration-150"
-                style={isActive ? {
-                  backgroundColor: 'var(--accent)',
-                  color: '#fff',
-                  border: '1px solid transparent',
-                } : {
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-secondary)',
-                  border: '1px solid var(--border-bright)',
-                }}
-              >
-                {f}
-                {f !== 'All' && (
-                  <span className="ml-1.5 opacity-50">
-                    {f === 'Active Layer' ? activeCount : f === 'Unmanaged' ? unmanagedCount : cleanCount}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-
-        <button
-          onClick={() => setHideClean(v => !v)}
-          className="px-3 py-1 text-xs font-medium rounded-full transition-all duration-150"
-          style={hideClean ? {
-            backgroundColor: 'rgba(34,197,94,0.07)',
-            color: '#4ade80',
-            border: '1px solid rgba(34,197,94,0.2)',
-          } : {
-            backgroundColor: 'transparent',
-            color: 'var(--text-secondary)',
-            border: '1px solid var(--border-bright)',
+        {/* Search */}
+        <input
+          type="text"
+          placeholder="Search components…"
+          value={search}
+          onChange={e => { setSearch(e.target.value); setShowAll(false) }}
+          className="rounded-lg px-3 py-1.5 text-xs transition-all focus:outline-none"
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-mid)',
+            color: 'var(--text-primary)',
+            width: '180px',
           }}
-        >
-          {hideClean ? 'Clean hidden' : 'Hide clean'}
-          <span className="ml-1.5 opacity-50">({cleanCount})</span>
-        </button>
+          onFocus={e => { e.currentTarget.style.borderColor = 'rgba(129,140,248,0.45)'; e.currentTarget.style.boxShadow = '0 0 0 2px rgba(91,95,199,0.08)' }}
+          onBlur={e =>  { e.currentTarget.style.borderColor = 'var(--border-mid)';      e.currentTarget.style.boxShadow = 'none' }}
+        />
+
+        {/* Filter pills + hide clean */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex gap-1.5">
+            {FILTERS.map(f => {
+              const isActive = activeFilter === f
+              return (
+                <button
+                  key={f}
+                  onClick={() => { setActiveFilter(f); setShowAll(false) }}
+                  className="px-3 py-1 text-xs font-medium rounded-full transition-all duration-150"
+                  style={isActive ? {
+                    backgroundColor: 'var(--accent)',
+                    color: '#fff',
+                    border: '1px solid transparent',
+                  } : {
+                    backgroundColor: 'transparent',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-bright)',
+                  }}
+                >
+                  {f}
+                  {f !== 'All' && (
+                    <span className="ml-1.5 opacity-50">
+                      {f === 'Active Layer' ? activeCount : f === 'Unmanaged' ? unmanagedCount : cleanCount}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            onClick={() => setHideClean(v => !v)}
+            className="px-3 py-1 text-xs font-medium rounded-full transition-all duration-150"
+            style={hideClean ? {
+              backgroundColor: 'rgba(34,197,94,0.07)',
+              color: '#4ade80',
+              border: '1px solid rgba(34,197,94,0.2)',
+            } : {
+              backgroundColor: 'transparent',
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border-bright)',
+            }}
+          >
+            {hideClean ? 'Clean hidden' : 'Hide clean'}
+            <span className="ml-1.5 opacity-50">({cleanCount})</span>
+          </button>
+        </div>
       </div>
 
       {/* Table */}

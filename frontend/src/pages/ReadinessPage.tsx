@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ReadinessReport, RemediationPlan, RemediationItem } from '../types'
 import ReadinessReportView from '../components/ReadinessReport'
+import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
 
 type RunState  = 'idle' | 'running' | 'done' | 'error'
 type PlanState = 'hidden' | 'loading' | 'ready' | 'error'
@@ -158,7 +159,7 @@ function RemediationPlanView({ plan }: { plan: RemediationPlan }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
         </svg>
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          This is a preview only. No changes have been made to the environment. Apply Fixes coming soon.
+          This is a preview only — no changes have been made to the environment.
         </p>
       </div>
     </div>
@@ -176,7 +177,7 @@ const CHECKS_MANIFEST = [
 ]
 
 export default function ReadinessPage() {
-  const [inputUrl, setInputUrl]   = useState('')
+  const [inputUrl, setInputUrl]   = useEnvironmentUrl()
   const [runState, setRunState]   = useState<RunState>('idle')
   const [report, setReport]       = useState<ReadinessReport | null>(null)
   const [error, setError]         = useState<string | null>(null)

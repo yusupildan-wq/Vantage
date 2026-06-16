@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import OptionSetGuard from '../components/OptionSetGuard'
 import OptionSetComparison from '../components/OptionSetComparison'
+import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
@@ -36,7 +37,7 @@ interface PasteCompareResponse {
 
 function PasteVsDevSection() {
   const [pastedText, setPastedText] = useState('')
-  const [devUrl, setDevUrl]         = useState('')
+  const [devUrl, setDevUrl]         = useEnvironmentUrl()
   const [isLoading, setIsLoading]   = useState(false)
   const [error, setError]           = useState<string | null>(null)
   const [data, setData]             = useState<PasteCompareResponse | null>(null)
@@ -332,7 +333,7 @@ function PasteVsDevSection() {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function OptionSetPage() {
-  const [inputUrl, setInputUrl]             = useState('')
+  const [inputUrl, setInputUrl]             = useEnvironmentUrl()
   const [environmentUrl, setEnvironmentUrl] = useState('')
 
   function handleSubmit(e: React.FormEvent) {
@@ -427,7 +428,7 @@ export default function OptionSetPage() {
                     onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#d97706' }}
                     onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#b45309' }}
                   >
-                    Set Environment
+                    Scan
                   </button>
                 </div>
               </div>
