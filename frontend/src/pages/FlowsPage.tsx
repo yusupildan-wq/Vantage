@@ -2,6 +2,34 @@ import { useState } from 'react'
 
 type FlowCompareStatus = 'match' | 'drift' | 'source_only' | 'target_only'
 type CompareFilter = 'all' | 'drift' | 'source_only' | 'target_only' | 'match'
+type ConnRefFilter = 'all' | 'broken' | 'high_risk' | 'healthy'
+type ConnRefRisk = 'critical' | 'high' | 'medium' | 'low'
+
+interface AffectedFlow { id: string; name: string; enabled: boolean }
+
+interface ConnectionRefHealth {
+  id: string
+  logicalName: string
+  displayName: string
+  connectorType: string
+  connectorId: string
+  hasConnection: boolean
+  status: 'healthy' | 'broken'
+  ownerId: string
+  isManaged: boolean
+  affectedFlows: AffectedFlow[]
+  riskLevel: ConnRefRisk
+}
+
+interface ConnectionRefsResponse {
+  environmentUrl: string
+  environmentId: string | null
+  total: number
+  broken: number
+  healthy: number
+  flowsAtRisk: number
+  refs: ConnectionRefHealth[]
+}
 
 interface FlowCompareEntry {
   name: string
@@ -21,7 +49,7 @@ interface FlowCompareResponse {
 function CompareStatusBadge({ status }: { status: FlowCompareStatus }) {
   const cfg: Record<FlowCompareStatus, { label: string; color: string; bg: string; border: string }> = {
     match:       { label: 'Match',        color: '#4ade80', bg: 'rgba(34,197,94,0.07)',   border: 'rgba(34,197,94,0.2)' },
-    drift:       { label: 'Drift',        color: '#fbbf24', bg: 'rgba(245,158,11,0.07)', border: 'rgba(245,158,11,0.2)' },
+    drift:       { label: 'Out of Sync',  color: '#fbbf24', bg: 'rgba(245,158,11,0.07)', border: 'rgba(245,158,11,0.2)' },
     source_only: { label: 'Not Deployed', color: '#f87171', bg: 'rgba(239,68,68,0.07)',  border: 'rgba(239,68,68,0.2)' },
     target_only: { label: 'Target Only',  color: '#94a3b8', bg: 'rgba(148,163,184,0.07)', border: 'rgba(148,163,184,0.2)' },
   }
@@ -84,7 +112,7 @@ function FlowCompareSection() {
 
   const tabs: { key: CompareFilter; label: string }[] = [
     { key: 'all',         label: `All (${counts.all})` },
-    { key: 'drift',       label: `Drift (${counts.drift})` },
+    { key: 'drift',       label: `Out of Sync (${counts.drift})` },
     { key: 'source_only', label: `Not Deployed (${counts.source_only})` },
     { key: 'target_only', label: `Target Only (${counts.target_only})` },
     { key: 'match',       label: `Match (${counts.match})` },
@@ -154,7 +182,7 @@ function FlowCompareSection() {
           <div className="px-6 py-5 grid grid-cols-2 sm:grid-cols-4 gap-4" style={{ borderBottom: '1px solid var(--border)' }}>
             {[
               { label: 'Total',       value: counts.all,         color: 'var(--text-primary)' },
-              { label: 'Drift',       value: counts.drift,       color: counts.drift > 0 ? '#fbbf24' : '#4ade80' },
+              { label: 'Out of Sync', value: counts.drift,       color: counts.drift > 0 ? '#fbbf24' : '#4ade80' },
               { label: 'Not Deployed', value: counts.source_only, color: counts.source_only > 0 ? '#f87171' : '#4ade80' },
               { label: 'Match',       value: counts.match,       color: '#4ade80' },
             ].map(s => (
@@ -187,7 +215,7 @@ function FlowCompareSection() {
               <table className="w-full text-xs">
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Flow Name', 'Status', 'Source', 'Target', 'Notes'].map((h, i) => (
+                    {["Flow Name", "Status", "Source", "Target", "What's Different"].map((h, i) => (
                       <th key={i} className="px-4 py-3 text-left font-semibold tracking-wider uppercase"
                         style={{ color: 'var(--text-muted)' }}>{h}</th>
                     ))}
@@ -231,7 +259,7 @@ function FlowCompareSection() {
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
 type FlowRunStatus = 'succeeded' | 'failed' | 'running' | 'cancelled' | 'waiting'
-type FilterTab = 'all' | 'failing' | 'disabled' | 'healthy'
+type FilterTab = 'all' | 'failing' | 'silent' | 'disabled' | 'healthy'
 
 interface FlowLastRun {
   status: FlowRunStatus
@@ -249,6 +277,8 @@ interface FlowHealth {
   recentRuns: FlowLastRun[]
   owner: string
   modifiedOn: string
+  triggerHealth: 'ok' | 'stale' | 'never_run'
+  daysSinceLastRun: number | null
 }
 
 interface FlowHealthResponse {
@@ -284,6 +314,36 @@ function RunStatusBadge({ status }: { status: FlowRunStatus }) {
     <span className="text-xs px-2 py-0.5 rounded-full font-medium"
       style={{ color: c.color, backgroundColor: c.bg, border: `1px solid ${c.border}` }}>
       {c.label}
+    </span>
+  )
+}
+
+// ─── Trigger health badge ─────────────────────────────────────────────────────
+
+function TriggerHealthBadge({ triggerHealth, daysSinceLastRun, enabled }: {
+  triggerHealth: 'ok' | 'stale' | 'never_run'
+  daysSinceLastRun: number | null
+  enabled: boolean
+}) {
+  if (!enabled) return <span style={{ color: 'var(--text-muted)' }}>—</span>
+  if (triggerHealth === 'ok') return (
+    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={{ color: '#4ade80', backgroundColor: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)' }}>
+      Active
+    </span>
+  )
+  if (triggerHealth === 'stale') return (
+    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={{ color: '#fbbf24', backgroundColor: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)' }}
+      title="Flow is enabled but hasn't run in over 7 days — the trigger may have stopped firing">
+      Silent {daysSinceLastRun}d
+    </span>
+  )
+  return (
+    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={{ color: '#94a3b8', backgroundColor: 'rgba(148,163,184,0.07)', border: '1px solid rgba(148,163,184,0.2)' }}
+      title="Flow is enabled but has never triggered — check the trigger configuration">
+      Never triggered
     </span>
   )
 }
@@ -324,6 +384,15 @@ function FlowRow({ flow }: { flow: FlowHealth }) {
           }
         </td>
 
+        {/* Trigger health */}
+        <td className="px-4 py-3">
+          <TriggerHealthBadge
+            triggerHealth={flow.triggerHealth}
+            daysSinceLastRun={flow.daysSinceLastRun}
+            enabled={flow.enabled}
+          />
+        </td>
+
         {/* Last run status */}
         <td className="px-4 py-3">
           {flow.lastRun ? <RunStatusBadge status={flow.lastRun.status} /> : <span className="text-xs" style={{ color: 'var(--text-muted)' }}>No runs</span>}
@@ -357,7 +426,7 @@ function FlowRow({ flow }: { flow: FlowHealth }) {
       {expanded && (
         <tr style={{ borderBottom: '1px solid var(--border)' }}>
           <td />
-          <td colSpan={6} className="px-4 pb-4 pt-2">
+          <td colSpan={7} className="px-4 pb-4 pt-2">
             <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-mid)' }}>
               <div className="px-4 py-2" style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
                 <span className="text-xs font-semibold tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>
@@ -399,11 +468,652 @@ function FlowRow({ flow }: { flow: FlowHealth }) {
   )
 }
 
+// ─── Connection ref badges ────────────────────────────────────────────────────
+
+function CRStatusBadge({ status }: { status: 'healthy' | 'broken' }) {
+  return status === 'healthy' ? (
+    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={{ color: '#4ade80', backgroundColor: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)' }}>Healthy</span>
+  ) : (
+    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={{ color: '#f87171', backgroundColor: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)' }}>Broken</span>
+  )
+}
+
+function CRRiskBadge({ level }: { level: ConnRefRisk }) {
+  const cfg: Record<ConnRefRisk, { label: string; color: string; bg: string; border: string }> = {
+    critical: { label: 'Critical', color: '#f87171', bg: 'rgba(239,68,68,0.07)',   border: 'rgba(239,68,68,0.2)' },
+    high:     { label: 'High',     color: '#fb923c', bg: 'rgba(251,146,60,0.07)',  border: 'rgba(251,146,60,0.2)' },
+    medium:   { label: 'Medium',   color: '#fbbf24', bg: 'rgba(245,158,11,0.07)', border: 'rgba(245,158,11,0.2)' },
+    low:      { label: 'Low',      color: '#4ade80', bg: 'rgba(34,197,94,0.07)',   border: 'rgba(34,197,94,0.2)' },
+  }
+  const c = cfg[level]
+  return (
+    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={{ color: c.color, backgroundColor: c.bg, border: `1px solid ${c.border}` }}>{c.label}</span>
+  )
+}
+
+// ─── Blast radius map (SVG) ───────────────────────────────────────────────────
+
+function BlastRadiusMap({ refs }: { refs: ConnectionRefHealth[] }) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+
+  const visRefs = refs.filter(r => r.affectedFlows.length > 0).slice(0, 14)
+
+  type FlowNode = AffectedFlow & { connectedRefIds: string[]; isAtRisk: boolean }
+  const flowMap = new Map<string, FlowNode>()
+  for (const ref of visRefs) {
+    for (const flow of ref.affectedFlows) {
+      if (!flowMap.has(flow.id)) flowMap.set(flow.id, { ...flow, connectedRefIds: [], isAtRisk: false })
+      const fn = flowMap.get(flow.id)!
+      fn.connectedRefIds.push(ref.id)
+      if (ref.status === 'broken') fn.isAtRisk = true
+    }
+  }
+  const flowNodes = [...flowMap.values()].slice(0, 26)
+
+  if (visRefs.length === 0) return null
+
+  const VB_W = 860
+  const NH = 34
+  const GAP = 9
+  const REF_X = 10; const REF_W = 210
+  const FL_X  = 650; const FL_W  = 200
+  const PAD   = 18
+
+  const refsH  = visRefs.length    * (NH + GAP)
+  const flowsH = flowNodes.length  * (NH + GAP)
+  const VB_H   = Math.max(refsH, flowsH) + PAD * 2
+
+  const ry  = (i: number) => PAD + (VB_H - PAD*2 - refsH ) / 2 + i * (NH + GAP) + NH / 2
+  const fny = (i: number) => PAD + (VB_H - PAD*2 - flowsH) / 2 + i * (NH + GAP) + NH / 2
+
+  const activeRefs  = new Set<string>()
+  const activeFlows = new Set<string>()
+  if (hoveredId) {
+    if (hoveredId.startsWith('r:')) {
+      const rid = hoveredId.slice(2)
+      activeRefs.add(rid)
+      flowNodes.forEach(f => { if (f.connectedRefIds.includes(rid)) activeFlows.add(f.id) })
+    } else if (hoveredId.startsWith('f:')) {
+      const fid = hoveredId.slice(2)
+      activeFlows.add(fid)
+      flowMap.get(fid)?.connectedRefIds.forEach(r => activeRefs.add(r))
+    }
+  }
+  const hasHover = !!hoveredId
+  const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n - 1) + '…' : s
+  const FF = 'ui-sans-serif, system-ui, sans-serif'
+
+  return (
+    <div style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 16px 12px' }}>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold tracking-[0.2em] uppercase" style={{ color: 'var(--text-muted)' }}>Blast Radius Map</p>
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Hover any node to trace its dependencies</p>
+      </div>
+      <div className="flex flex-wrap gap-4 mb-4">
+        {[
+          { color: '#f87171', label: 'Broken connection' },
+          { color: '#4ade80', label: 'Healthy connection' },
+          { color: '#fbbf24', label: 'Flow at risk' },
+          { color: '#94a3b8', label: 'Flow safe' },
+        ].map(item => (
+          <div key={item.label} className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <svg viewBox={`0 0 ${VB_W} ${VB_H}`} width="100%" style={{ display: 'block', overflow: 'visible' }}>
+        {/* Column labels */}
+        <text x={REF_X + REF_W/2} y={7} fontSize={7.5} fontFamily={FF} fill="#475569" textAnchor="middle" fontWeight={700} letterSpacing={2.5}>CONNECTIONS</text>
+        <text x={FL_X  + FL_W /2} y={7} fontSize={7.5} fontFamily={FF} fill="#475569" textAnchor="middle" fontWeight={700} letterSpacing={2.5}>FLOWS</text>
+
+        {/* Edges */}
+        {visRefs.map((ref, ri) =>
+          ref.affectedFlows.map(af => {
+            const fi = flowNodes.findIndex(f => f.id === af.id)
+            if (fi === -1) return null
+            const x1 = REF_X + REF_W; const y1 = ry(ri)
+            const x2 = FL_X;          const y2 = fny(fi)
+            const cx = (x1 + x2) / 2
+            const active = !hasHover || activeRefs.has(ref.id) || activeFlows.has(af.id)
+            const col = ref.status === 'broken' ? '#f87171' : '#4ade80'
+            return (
+              <path key={`${ref.id}-${af.id}`}
+                d={`M ${x1} ${y1} C ${cx} ${y1} ${cx} ${y2} ${x2} ${y2}`}
+                fill="none" stroke={col}
+                strokeWidth={active ? 1.5 : 0.4}
+                opacity={hasHover ? (active ? 0.7 : 0.04) : 0.2}
+                style={{ transition: 'all 0.15s ease' }} />
+            )
+          })
+        )}
+
+        {/* Connection ref nodes */}
+        {visRefs.map((ref, ri) => {
+          const y = ry(ri)
+          const active = !hasHover || activeRefs.has(ref.id)
+          const col = ref.status === 'broken' ? '#f87171' : '#4ade80'
+          const bg  = ref.status === 'broken' ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.08)'
+          return (
+            <g key={ref.id} style={{ cursor: 'pointer' }}
+              onMouseEnter={() => setHoveredId(`r:${ref.id}`)}
+              onMouseLeave={() => setHoveredId(null)}>
+              <rect x={REF_X} y={y - NH/2} width={REF_W} height={NH} rx={7}
+                fill={bg} stroke={col} strokeWidth={active ? 1.5 : 0.6}
+                opacity={hasHover && !active ? 0.18 : 1}
+                style={{ transition: 'all 0.15s ease' }} />
+              <text x={REF_X + 10} y={y - 2} fontSize={10.5} fontFamily={FF} fontWeight={500}
+                fill={col} dominantBaseline="middle"
+                opacity={hasHover && !active ? 0.2 : 1}
+                style={{ transition: 'opacity 0.15s' }}>
+                {trunc(ref.displayName, 21)}
+              </text>
+              <text x={REF_X + 10} y={y + 10} fontSize={8.5} fontFamily={FF}
+                fill={col} dominantBaseline="middle" opacity={hasHover && !active ? 0.15 : 0.5}
+                style={{ transition: 'opacity 0.15s' }}>
+                {ref.connectorType}
+              </text>
+              <text x={REF_X + REF_W - 8} y={y} fontSize={10} fontFamily={FF} fontWeight={700}
+                fill={col} dominantBaseline="middle" textAnchor="end"
+                opacity={hasHover && !active ? 0.15 : 0.8}
+                style={{ transition: 'opacity 0.15s' }}>
+                {ref.affectedFlows.length}
+              </text>
+            </g>
+          )
+        })}
+
+        {/* Flow nodes */}
+        {flowNodes.map((flow, fi) => {
+          const y = fny(fi)
+          const active = !hasHover || activeFlows.has(flow.id)
+          const col = flow.isAtRisk ? '#fbbf24' : (flow.enabled ? '#4ade80' : '#64748b')
+          const bg  = flow.isAtRisk ? 'rgba(251,191,36,0.08)' : (flow.enabled ? 'rgba(34,197,94,0.06)' : 'rgba(100,116,139,0.08)')
+          return (
+            <g key={flow.id} style={{ cursor: 'pointer' }}
+              onMouseEnter={() => setHoveredId(`f:${flow.id}`)}
+              onMouseLeave={() => setHoveredId(null)}>
+              <rect x={FL_X} y={y - NH/2} width={FL_W} height={NH} rx={7}
+                fill={bg} stroke={col} strokeWidth={active ? 1 : 0.4}
+                opacity={hasHover && !active ? 0.12 : 1}
+                style={{ transition: 'all 0.15s ease' }} />
+              <text x={FL_X + 10} y={y} fontSize={10} fontFamily={FF}
+                fill={hasHover && !active ? '#334155' : '#94a3b8'}
+                dominantBaseline="middle"
+                opacity={hasHover && !active ? 0.35 : 1}
+                style={{ transition: 'all 0.15s ease' }}>
+                {trunc(flow.name, 24)}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+
+      <p className="text-xs mt-3 text-center" style={{ color: 'var(--text-muted)' }}>
+        Showing top 14 connections by risk severity — see table below for the full list
+      </p>
+    </div>
+  )
+}
+
+// ─── Mini blast radius map (per-row) ─────────────────────────────────────────
+
+function MiniBlastMap({ connRef }: { connRef: ConnectionRefHealth }) {
+  const flows = connRef.affectedFlows
+  if (flows.length === 0) return null
+
+  const ROW_H   = 38
+  const PAD     = 20
+  const svgH    = Math.max(70, flows.length * ROW_H + PAD * 2)
+  const refCY   = svgH / 2
+  const refX    = 8
+  const refW    = 150
+  const flowX   = 210
+  const flowW   = 140
+  const totalW  = flowX + flowW + 8
+
+  const refColor  = connRef.status === 'broken' ? '#f87171' : '#4ade80'
+  const refFill   = connRef.status === 'broken' ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.07)'
+  const lineColor = connRef.status === 'broken' ? '#f87171' : '#4ade80'
+
+  const label = (s: string, max: number) => s.length > max ? s.slice(0, max) + '…' : s
+
+  return (
+    <svg viewBox={`0 0 ${totalW} ${svgH}`} width="100%"
+      style={{ display: 'block', overflow: 'visible' }}>
+
+      {/* Connection ref node */}
+      <rect x={refX} y={refCY - 16} width={refW} height={32} rx={6}
+        fill={refFill} stroke={refColor} strokeWidth={1} />
+      <text x={refX + refW / 2} y={refCY - 3} textAnchor="middle" fontSize="8"
+        fill={refColor} fontWeight="600">
+        {label(connRef.connectorType, 18)}
+      </text>
+      <text x={refX + refW / 2} y={refCY + 9} textAnchor="middle" fontSize="7"
+        fill="rgba(148,163,184,0.8)">
+        {label(connRef.logicalName, 22)}
+      </text>
+
+      {/* Flow nodes + bezier curves */}
+      {flows.map((flow, i) => {
+        const fy  = PAD + i * ROW_H + ROW_H / 2
+        const x1  = refX + refW
+        const x2  = flowX
+        const cx  = (x1 + x2) / 2
+        const enabledColor = '#fbbf24'
+        const disabledColor = '#475569'
+        const fc  = flow.enabled ? enabledColor : disabledColor
+        const ff  = flow.enabled ? 'rgba(251,191,36,0.06)' : 'rgba(71,85,105,0.05)'
+        const fs  = flow.enabled ? 'rgba(251,191,36,0.25)' : 'rgba(71,85,105,0.2)'
+        return (
+          <g key={flow.id}>
+            <path d={`M ${x1} ${refCY} C ${cx} ${refCY} ${cx} ${fy} ${x2} ${fy}`}
+              fill="none" stroke={lineColor} strokeWidth={1} opacity={0.35} />
+            <rect x={flowX} y={fy - 13} width={flowW} height={26} rx={5}
+              fill={ff} stroke={fs} strokeWidth={1} />
+            <text x={flowX + 8} y={fy + 4} fontSize="8" fill={fc} fontWeight="500">
+              {label(flow.name, 19)}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+// ─── Connection ref expandable row ───────────────────────────────────────────
+
+type FixState = 'idle' | 'confirming' | 'running' | 'success' | 'error'
+
+function ConnRefRow({ connRef, environmentUrl, environmentId }: {
+  connRef: ConnectionRefHealth
+  environmentUrl: string
+  environmentId: string | null
+}) {
+  const ref = connRef
+  const [expanded, setExpanded]   = useState(false)
+  const [fixState, setFixState]   = useState<FixState>('idle')
+  const [fixMessage, setFixMessage] = useState('')
+
+  const isDataverse = ref.connectorId.includes('commondataservice')
+  const canAutoFix  = ref.status === 'broken' && isDataverse
+  const powerAppsUrl = environmentId
+    ? `https://make.powerapps.com/environments/${environmentId}/connections`
+    : 'https://make.powerapps.com'
+
+  async function runFix() {
+    setFixState('running')
+    try {
+      const resp = await fetch(`${API_URL}/api/connectionrefs/fix`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ environmentUrl, connectionRefId: ref.id }),
+      })
+      const json = await resp.json()
+      if (json.success) { setFixState('success'); setFixMessage(json.message) }
+      else               { setFixState('error');   setFixMessage(json.message ?? 'Fix failed') }
+    } catch {
+      setFixState('error')
+      setFixMessage('Could not reach the backend.')
+    }
+  }
+
+  return (
+    <>
+      <tr className="cursor-pointer transition-colors"
+        style={{ borderBottom: expanded ? 'none' : '1px solid var(--border)' }}
+        onClick={() => setExpanded(v => !v)}
+        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)')}
+        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+        <td className="px-4 py-3 w-8">
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{expanded ? '▾' : '▸'}</span>
+        </td>
+        <td className="px-4 py-3">
+          <span className="text-sm font-medium block truncate" title={ref.logicalName} style={{ color: 'var(--text-primary)' }}>
+            {ref.logicalName}
+          </span>
+        </td>
+        <td className="px-4 py-3">
+          <span className="text-xs px-2 py-0.5 rounded font-medium"
+            style={{ color: '#94a3b8', backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)' }}>
+            {ref.connectorType}
+          </span>
+        </td>
+        <td className="px-4 py-3"><CRStatusBadge status={ref.status} /></td>
+        <td className="px-4 py-3"><CRRiskBadge level={ref.riskLevel} /></td>
+        <td className="px-4 py-3">
+          {ref.affectedFlows.length === 0
+            ? <span className="text-xs" style={{ color: 'var(--text-muted)' }}>None</span>
+            : <span className="text-xs font-semibold"
+                style={{ color: ref.status === 'broken' && ref.affectedFlows.length > 0 ? '#f87171' : 'var(--text-primary)' }}>
+                {ref.affectedFlows.length} flow{ref.affectedFlows.length !== 1 ? 's' : ''}
+              </span>
+          }
+        </td>
+        {/* Actions — stop row click from propagating */}
+        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+          {ref.status === 'broken' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <a href={powerAppsUrl} target="_blank" rel="noreferrer"
+                className="text-xs px-2.5 py-1 rounded-lg font-medium transition-all"
+                style={{ color: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.2)', whiteSpace: 'nowrap' }}>
+                Open in Power Apps
+              </a>
+              {canAutoFix && fixState === 'idle' && (
+                <button onClick={() => { setFixState('confirming'); setExpanded(true) }}
+                  className="text-xs px-2.5 py-1 rounded-lg font-medium transition-all"
+                  style={{ color: '#a78bfa', backgroundColor: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.2)', whiteSpace: 'nowrap' }}>
+                  Auto-fix
+                </button>
+              )}
+              {fixState === 'success' && <span className="text-xs font-medium" style={{ color: '#4ade80' }}>Fixed</span>}
+              {fixState === 'error'   && <span className="text-xs font-medium" style={{ color: '#f87171' }}>Failed</span>}
+            </div>
+          )}
+        </td>
+      </tr>
+
+      {expanded && (
+        <tr style={{ borderBottom: '1px solid var(--border)' }}>
+          <td />
+          <td colSpan={6} className="px-4 pb-4 pt-2">
+            <div className="space-y-3">
+
+              {/* Confirmation panel */}
+              {fixState === 'confirming' && (
+                <div className="rounded-lg px-4 py-4"
+                  style={{ backgroundColor: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.25)' }}>
+                  <p className="text-xs font-semibold mb-1" style={{ color: '#a78bfa' }}>Auto-fix — Dataverse connection</p>
+                  <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+                    This will find another healthy Dataverse connection reference in this environment and copy its connection to fix{' '}
+                    <strong style={{ color: 'var(--text-primary)' }}>{ref.logicalName}</strong>.
+                  </p>
+                  <p className="text-xs mb-4" style={{ color: '#fbbf24' }}>
+                    Only run this if both connection references should share the same credentials.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <button onClick={runFix}
+                      className="text-xs px-4 py-2 rounded-lg font-semibold text-white"
+                      style={{ backgroundColor: '#6d28d9', boxShadow: '0 0 14px rgba(109,40,217,0.3)' }}>
+                      Yes, run auto-fix
+                    </button>
+                    <button onClick={() => setFixState('idle')}
+                      className="text-xs px-4 py-2 rounded-lg font-medium"
+                      style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {fixState === 'running' && (
+                <div className="rounded-lg px-4 py-3 text-xs"
+                  style={{ backgroundColor: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)', color: '#a78bfa' }}>
+                  Running fix…
+                </div>
+              )}
+              {fixState === 'success' && (
+                <div className="rounded-lg px-4 py-3 text-xs"
+                  style={{ backgroundColor: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', color: '#4ade80' }}>
+                  {fixMessage}
+                </div>
+              )}
+              {fixState === 'error' && (
+                <div className="rounded-lg px-4 py-3 text-xs"
+                  style={{ backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171' }}>
+                  {fixMessage}
+                </div>
+              )}
+
+              {/* Mini blast radius map */}
+              {ref.affectedFlows.length > 0 && (
+                <div className="rounded-lg px-4 py-3"
+                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)' }}>
+                  <p className="text-xs font-semibold tracking-wider uppercase mb-3" style={{ color: 'var(--text-muted)' }}>
+                    Blast Radius
+                  </p>
+                  <MiniBlastMap connRef={ref} />
+                </div>
+              )}
+
+              {/* Affected flows list */}
+              <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-mid)' }}>
+                <div className="px-4 py-2" style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
+                  <span className="text-xs font-semibold tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>
+                    {ref.affectedFlows.length === 0
+                      ? 'No flows use this connection — may be safe to remove'
+                      : ref.status === 'broken'
+                        ? 'Flows currently broken by this connection'
+                        : 'Flows depending on this connection'}
+                  </span>
+                </div>
+                {ref.affectedFlows.length === 0 ? (
+                  <p className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>No flows reference this connection reference.</p>
+                ) : (
+                  <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                    {ref.affectedFlows.map(flow => (
+                      <div key={flow.id} className="px-4 py-2.5 flex items-center justify-between">
+                        <span className="text-xs" style={{ color: 'var(--text-primary)' }}>{flow.name}</span>
+                        {flow.enabled
+                          ? <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: '#4ade80', backgroundColor: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)' }}>Enabled</span>
+                          : <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: '#94a3b8', backgroundColor: 'rgba(148,163,184,0.07)', border: '1px solid rgba(148,163,184,0.2)' }}>Disabled</span>
+                        }
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+// ─── Connection ref section (Section 03) ────────────────────────────────────
+
+function ConnectionRefSection() {
+  const [inputUrl, setInputUrl]   = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+  const [data, setData]           = useState<ConnectionRefsResponse | null>(null)
+  const [filter, setFilter]       = useState<ConnRefFilter>('all')
+  const [showAll, setShowAll]     = useState(false)
+
+  async function handleScan(e: React.FormEvent) {
+    e.preventDefault()
+    setIsLoading(true); setError(null); setData(null)
+    try {
+      let resp: Response
+      try {
+        resp = await fetch(`${API_URL}/api/connectionrefs/health?environmentUrl=${encodeURIComponent(inputUrl.trim())}`)
+      } catch {
+        setError(`Cannot reach the backend server at ${API_URL}. Make sure the backend is running.`)
+        return
+      }
+      const json = await resp.json()
+      if (!resp.ok) throw new Error(json.error ?? 'Failed to fetch connection references')
+      setData(json)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const refs = data?.refs ?? []
+  const counts = {
+    all:       refs.length,
+    broken:    refs.filter(r => r.status === 'broken').length,
+    high_risk: refs.filter(r => r.riskLevel === 'critical' || r.riskLevel === 'high').length,
+    healthy:   refs.filter(r => r.status === 'healthy').length,
+  }
+  const filtered = refs.filter(r => {
+    if (filter === 'broken')    return r.status === 'broken'
+    if (filter === 'high_risk') return r.riskLevel === 'critical' || r.riskLevel === 'high'
+    if (filter === 'healthy')   return r.status === 'healthy'
+    return true
+  })
+  const tabs: { key: ConnRefFilter; label: string; count: number }[] = [
+    { key: 'all',       label: 'All',       count: counts.all },
+    { key: 'broken',    label: 'Broken',    count: counts.broken },
+    { key: 'high_risk', label: 'High Risk', count: counts.high_risk },
+    { key: 'healthy',   label: 'Healthy',   count: counts.healthy },
+  ]
+
+  return (
+    <>
+      {/* Form */}
+      <form onSubmit={handleScan}
+        className="relative rounded-xl overflow-hidden"
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+        <div className="absolute top-0 left-0 right-0 h-px"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(167,139,250,0.5), transparent)' }} />
+        <div className="px-6 py-6">
+          <p className="text-xs font-semibold tracking-[0.22em] uppercase mb-5" style={{ color: 'var(--text-muted)' }}>Configuration</p>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <label className="block text-xs font-medium tracking-wider uppercase mb-2" style={{ color: 'var(--text-secondary)' }}>Environment URL</label>
+              <input type="url" placeholder="https://yourorg.crm.dynamics.com" value={inputUrl}
+                onChange={e => setInputUrl(e.target.value)} required
+                className="w-full rounded-lg px-4 py-3 text-sm transition-all duration-200 focus:outline-none"
+                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', color: 'var(--text-primary)', caretColor: '#a78bfa' }}
+                onFocus={e => { e.currentTarget.style.borderColor = 'rgba(167,139,250,0.4)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(167,139,250,0.08)' }}
+                onBlur={e =>  { e.currentTarget.style.borderColor = 'var(--border-mid)'; e.currentTarget.style.boxShadow = 'none' }} />
+            </div>
+            <div className="flex items-end">
+              <button type="submit" disabled={isLoading || !inputUrl.trim()}
+                className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-white transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ backgroundColor: '#6d28d9', boxShadow: '0 0 20px rgba(109,40,217,0.3)' }}
+                onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#7c3aed' }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#6d28d9' }}>
+                {isLoading ? 'Scanning…' : 'Scan Connections'}
+              </button>
+            </div>
+          </div>
+          {isLoading && (
+            <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
+              Parsing flow definitions to build the blast radius map — may take 10–20s for large environments.
+            </p>
+          )}
+        </div>
+      </form>
+
+      {error && (
+        <div className="rounded-lg px-4 py-3 text-xs"
+          style={{ backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171' }}>
+          {error}
+        </div>
+      )}
+
+      {data && (
+        <div className="space-y-4">
+          {/* Summary bar */}
+          <div className="relative rounded-xl overflow-hidden"
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="absolute top-0 left-0 right-0 h-px"
+              style={{ background: 'linear-gradient(90deg, transparent, rgba(167,139,250,0.5), transparent)' }} />
+            <div className="px-6 py-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {[
+                { label: 'Total',         value: data.total,       color: 'var(--text-primary)' },
+                { label: 'Healthy',       value: data.healthy,     color: '#4ade80' },
+                { label: 'Broken',        value: data.broken,      color: data.broken > 0 ? '#f87171' : '#4ade80' },
+                { label: 'Flows at Risk', value: data.flowsAtRisk, color: data.flowsAtRisk > 0 ? '#f87171' : '#4ade80' },
+              ].map(s => (
+                <div key={s.label}>
+                  <p className="text-xs tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
+                  <p className="text-2xl font-display font-semibold mt-1" style={{ color: s.color }}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Blast radius visual map */}
+          <BlastRadiusMap refs={refs} />
+
+          {/* Broken warning */}
+          {data.broken > 0 && (
+            <div className="rounded-lg px-4 py-3 text-xs font-medium flex items-center gap-2"
+              style={{ backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', color: '#f87171' }}>
+              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9.303 3.376c.866 1.5-.217 3.374-1.948 3.374H4.645c-1.73 0-2.813-1.874-1.948-3.374l7.5-12.999a2.25 2.25 0 013.706 0l7.5 13zm-10.5-3.376h.008v.008H12v-.008z" />
+              </svg>
+              {data.broken} broken connection{data.broken !== 1 ? 's' : ''} — {data.flowsAtRisk} flow{data.flowsAtRisk !== 1 ? 's' : ''} will fail until fixed. Expand any broken row to see which flows are affected.
+            </div>
+          )}
+
+          {/* Filter tabs + table */}
+          <div className="relative rounded-xl overflow-hidden"
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="px-6 py-3 flex flex-wrap gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
+              {tabs.map(t => (
+                <button key={t.key}
+                  onClick={() => { setFilter(t.key); setShowAll(false) }}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
+                  style={filter === t.key
+                    ? { backgroundColor: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)' }
+                    : { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-bright)' }
+                  }>
+                  {t.label} <span className="ml-1 opacity-60">{t.count}</span>
+                </button>
+              ))}
+            </div>
+            {filtered.length === 0 ? (
+              <p className="px-6 py-8 text-sm text-center" style={{ color: 'var(--text-muted)' }}>No connection references match this filter.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="text-xs" style={{ width: '100%', tableLayout: 'fixed' }}>
+                  <colgroup>
+                    <col style={{ width: '2rem' }} />
+                    <col style={{ width: '30%' }} />
+                    <col style={{ width: '13%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '23%' }} />
+                  </colgroup>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      <th className="w-8" />
+                      {['Connection Name', 'Connector', 'Status', 'Risk', 'Flows Affected', 'Actions'].map((h, i) => (
+                        <th key={i} className="px-4 py-3 text-left font-semibold tracking-wider uppercase"
+                          style={{ color: 'var(--text-muted)' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.slice(0, showAll ? undefined : 10).map(ref => (
+                      <ConnRefRow key={ref.id} connRef={ref} environmentUrl={data!.environmentUrl} environmentId={data?.environmentId ?? null} />
+                    ))}
+                  </tbody>
+                </table>
+                {filtered.length > 10 && (
+                  <div className="px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
+                    <button onClick={() => setShowAll(v => !v)}
+                      className="text-xs font-medium" style={{ color: '#a78bfa' }}>
+                      {showAll ? 'Show less' : `Show ${filtered.length - 10} more`}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function FlowsPage() {
   const [inputUrl, setInputUrl]   = useState('')
-  const [envUrl, setEnvUrl]       = useState('')
+
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError]         = useState<string | null>(null)
   const [data, setData]           = useState<FlowHealthResponse | null>(null)
@@ -416,7 +1126,7 @@ export default function FlowsPage() {
     setError(null)
     setData(null)
     const url = inputUrl.trim()
-    setEnvUrl(url)
+
     try {
       let resp: Response
       try {
@@ -441,18 +1151,21 @@ export default function FlowsPage() {
     enabled:  flows.filter(f => f.enabled).length,
     disabled: flows.filter(f => !f.enabled).length,
     failing:  flows.filter(f => f.failureCount7d > 0).length,
+    silent:   flows.filter(f => f.enabled && f.triggerHealth !== 'ok').length,
   }
 
   const filtered = flows.filter(f => {
     if (filter === 'failing')  return f.failureCount7d > 0
     if (filter === 'disabled') return !f.enabled
-    if (filter === 'healthy')  return f.enabled && f.failureCount7d === 0
+    if (filter === 'silent')   return f.enabled && f.triggerHealth !== 'ok'
+    if (filter === 'healthy')  return f.enabled && f.failureCount7d === 0 && f.triggerHealth === 'ok'
     return true
   })
 
   const tabs: { key: FilterTab; label: string; count: number }[] = [
     { key: 'all',      label: 'All',      count: summary.total },
     { key: 'failing',  label: 'Failing',  count: summary.failing },
+    { key: 'silent',   label: 'Silent',   count: summary.silent },
     { key: 'disabled', label: 'Disabled', count: summary.disabled },
     { key: 'healthy',  label: 'Healthy',  count: summary.enabled - summary.failing },
   ]
@@ -549,12 +1262,13 @@ export default function FlowsPage() {
                 style={{ background: 'linear-gradient(90deg, transparent, rgba(96,165,250,0.5), transparent)' }} />
 
               {/* Summary bar */}
-              <div className="px-6 py-5 grid grid-cols-2 sm:grid-cols-4 gap-4" style={{ borderBottom: '1px solid var(--border)' }}>
+              <div className="px-6 py-5 grid grid-cols-2 sm:grid-cols-5 gap-4" style={{ borderBottom: '1px solid var(--border)' }}>
                 {[
-                  { label: 'Total Flows',  value: summary.total,    color: 'var(--text-primary)' },
+                  { label: 'Total',        value: summary.total,    color: 'var(--text-primary)' },
                   { label: 'Enabled',      value: summary.enabled,  color: '#4ade80' },
                   { label: 'Disabled',     value: summary.disabled, color: '#94a3b8' },
                   { label: 'Failing (7d)', value: summary.failing,  color: summary.failing > 0 ? '#f87171' : '#4ade80' },
+                  { label: 'Silent',       value: summary.silent,   color: summary.silent > 0 ? '#fbbf24' : '#4ade80' },
                 ].map(s => (
                   <div key={s.label}>
                     <p className="text-xs tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
@@ -589,7 +1303,7 @@ export default function FlowsPage() {
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border)' }}>
                         <th className="w-8" />
-                        {['Flow Name', 'Status', 'Last Run', 'When', 'Failures (7d)', 'Last Error'].map((h, i) => (
+                        {['Flow Name', 'Status', 'Trigger', 'Last Run', 'When', 'Failures (7d)', 'Last Error'].map((h, i) => (
                           <th key={i} className="px-4 py-3 text-left font-semibold tracking-wider uppercase"
                             style={{ color: 'var(--text-muted)' }}>
                             {h}
@@ -625,10 +1339,25 @@ export default function FlowsPage() {
             <p className="text-xs font-semibold tracking-[0.24em] uppercase mb-1" style={{ color: '#60a5fa' }}>Section 02</p>
             <h2 className="font-display font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>Flow Comparison</h2>
             <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-              Compare cloud flows between two environments — see what's missing, what's drifted, and what has undeployed changes.
+              Compare cloud flows between two environments — see what's missing, what's out of sync, and what has undeployed changes.
             </p>
           </div>
           <FlowCompareSection />
+        </section>
+
+        {/* Divider */}
+        <div className="w-full h-px" style={{ background: 'linear-gradient(90deg, transparent, var(--border-bright), transparent)' }} />
+
+        {/* Section 3: Connection Reference Health */}
+        <section className="space-y-5">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.24em] uppercase mb-1" style={{ color: '#a78bfa' }}>Section 03</p>
+            <h2 className="font-display font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>Connection Reference Health</h2>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+              Scan connection references to see which are broken, their blast radius, and exactly which flows fail with them.
+            </p>
+          </div>
+          <ConnectionRefSection />
         </section>
 
       </main>

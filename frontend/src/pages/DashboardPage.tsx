@@ -213,7 +213,7 @@ export default function DashboardPage() {
             index="05"
             title="Cloud Flow Monitor"
             description="See every cloud flow's health at a glance — without clicking through Power Apps."
-            detail="Shows run status, failure count, and the actual error message for every flow in an environment. Click any flow to see its last 10 run attempts."
+            detail="Flow health, silent trigger detection, environment comparison, and connection reference blast-radius map — all in one place."
             accentColor="#60a5fa"
             accentGlow="rgba(96,165,250,0.08)"
             topLine="linear-gradient(90deg, transparent, rgba(96,165,250,0.55), transparent)"

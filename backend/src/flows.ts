@@ -18,6 +18,8 @@ export interface FlowHealth {
   recentRuns: FlowLastRun[]
   owner: string
   modifiedOn: string
+  triggerHealth: 'ok' | 'stale' | 'never_run'
+  daysSinceLastRun: number | null
 }
 
 const RUN_STATUS_MAP: Record<number, FlowRunStatus> = {
@@ -167,9 +169,54 @@ export async function getFlowHealth(client: AxiosInstance): Promise<FlowHealth[]
     failuresByFlow.set(fid, (failuresByFlow.get(fid) ?? 0) + 1)
   }
 
+  // Enabled flows with no sessions in 7d — check when they last ran (ever)
+  const staleFlowIds = flows
+    .filter(f => f.statecode === 1 && !sessionsByFlow.has(f.workflowid))
+    .map(f => f.workflowid)
+
+  const lastRunEverMap = new Map<string, string | null>()
+  if (staleFlowIds.length > 0) {
+    await Promise.all(
+      staleFlowIds.map(async (flowId) => {
+        try {
+          const r = await client.get(
+            `/flowsessions?$filter=_regardingobjectid_value eq ${flowId}&$orderby=completedon desc&$top=1&$select=completedon,startedon`
+          )
+          const s = r.data.value[0] ?? null
+          lastRunEverMap.set(flowId, s?.completedon ?? s?.startedon ?? null)
+        } catch {
+          lastRunEverMap.set(flowId, null)
+        }
+      })
+    )
+  }
+
   return flows.map(f => {
     const sessions = (sessionsByFlow.get(f.workflowid) ?? []).slice(0, 10)
     const runs = sessions.map(sessionToRun)
+
+    let triggerHealth: 'ok' | 'stale' | 'never_run' = 'ok'
+    let daysSinceLastRun: number | null = null
+
+    if (f.statecode === 1) {
+      if (runs.length > 0) {
+        // Ran in last 7 days — healthy
+        if (runs[0].timestamp) {
+          daysSinceLastRun = Math.round((Date.now() - new Date(runs[0].timestamp).getTime()) / 86400000)
+        }
+        triggerHealth = 'ok'
+      } else {
+        // No runs in last 7 days — check history
+        const lastEver = lastRunEverMap.get(f.workflowid) ?? null
+        if (lastEver) {
+          daysSinceLastRun = Math.round((Date.now() - new Date(lastEver).getTime()) / 86400000)
+          triggerHealth = 'stale'
+        } else {
+          triggerHealth = 'never_run'
+        }
+      }
+    }
+
     return {
       flowId: f.workflowid,
       name: f.name,
@@ -179,6 +226,8 @@ export async function getFlowHealth(client: AxiosInstance): Promise<FlowHealth[]
       recentRuns: runs,
       owner: f['_ownerid_value'] ?? '',
       modifiedOn: f.modifiedon,
+      triggerHealth,
+      daysSinceLastRun,
     }
   })
 }
