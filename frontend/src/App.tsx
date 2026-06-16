@@ -58,7 +58,7 @@ export default function App() {
         style={{ borderTop: '1px solid var(--border)' }}
       >
         <span className="text-xs tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>
-          Active Layer Auditor
+          Vantage
         </span>
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
           Power Platform · Dataverse

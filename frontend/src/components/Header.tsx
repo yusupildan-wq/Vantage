@@ -33,7 +33,7 @@ export default function Header() {
             className="font-display font-semibold text-sm tracking-widest uppercase transition-colors group-hover:text-white"
             style={{ color: pageLabel ? 'var(--text-secondary)' : 'var(--text-primary)' }}
           >
-            ALA
+            VTG
           </span>
         </Link>
 

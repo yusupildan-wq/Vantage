@@ -119,13 +119,13 @@ export default function DashboardPage() {
               className="text-xs font-semibold tracking-[0.3em] uppercase mb-5"
               style={{ color: 'var(--accent-bright)' }}
             >
-              Power Platform · Dataverse
+              Power Platform Intelligence
             </p>
             <h1
               className="font-display font-semibold leading-[1.04] mb-6 text-gradient"
               style={{ fontSize: 'clamp(2.8rem, 5vw, 4.8rem)' }}
             >
-              Active Layer<br />Auditor
+              Vantage
             </h1>
             <p className="text-base leading-relaxed" style={{ color: 'var(--text-secondary)', maxWidth: '480px' }}>
               Precision tooling for Power Platform engineers. Select a feature below to get started.
