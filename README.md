@@ -1,6 +1,6 @@
-# Active Layer Auditor
+# Vantage
 
-A full-stack Power Platform engineering tool for auditing, validating, and comparing Microsoft Dataverse environments before deployment.
+Power Platform engineering toolkit — audit active layers, monitor cloud flows, guard option sets, validate deployment readiness, and compare environments across Dataverse.
 
 ---
 
@@ -14,7 +14,7 @@ A full-stack Power Platform engineering tool for auditing, validating, and compa
 
 ## First-time setup
 
-Do this once when you first clone the repo. Open a terminal in the `active-layer-auditor` folder.
+Do this once when you first clone the repo.
 
 ### Step 1 — Install backend dependencies
 
@@ -39,7 +39,7 @@ AZURE_CLIENT_SECRET=paste-your-client-secret-here
 
 ### Step 3 — Install frontend dependencies
 
-Open a **new terminal** in the `active-layer-auditor` folder:
+Open a **new terminal** in the project root:
 
 ```
 cd frontend
@@ -48,9 +48,7 @@ npm install
 
 ### Step 4 — Create the frontend config file
 
-In the `frontend` folder, create a file called `.env` (no extension, just `.env`).
-
-Paste this into it exactly as shown:
+In the `frontend` folder, create a file called `.env`:
 
 ```
 VITE_API_URL=http://localhost:3001
@@ -86,37 +84,14 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ## When you pull new changes from the repo
 
-After running `git pull`, do this before starting the app again:
+After running `git pull`, reinstall dependencies before starting the app:
 
 ```
-cd backend
-npm install
-```
-```
-cd frontend
-npm install
+cd backend && npm install
+cd frontend && npm install
 ```
 
-Then start both terminals as normal. You do not need to recreate your `.env` files.
-
----
-
-## Troubleshooting
-
-**"Cannot reach the backend server"**
-The backend is not running. Open a terminal, `cd backend`, run `npm run dev`, and keep it open.
-
-**"Failed to fetch" / blank error**
-Same as above — backend is not running, or it crashed on startup. Check the backend terminal for error messages.
-
-**"Missing required environment variables"**
-Your `backend/.env` file is missing or incomplete. Make sure it has all three lines: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`.
-
-**"No client config found for this environment"**
-The environment URL you entered does not match any file in `config/clients/`. Ask whoever manages the tool for the correct config file and drop it in that folder.
-
-**Backend crashes immediately**
-Check the terminal output. The most common cause is a missing or malformed `backend/.env` file.
+You do not need to recreate your `.env` files.
 
 ---
 
@@ -131,33 +106,46 @@ Scans a Dataverse environment and identifies components sitting in the **active 
 | **Unmanaged** | Component has never been part of any managed solution |
 | **Base Layer** | Clean — component is fully managed |
 
+Results are searchable, filterable by status, and exportable to CSV.
+
 ### 02 · Option Set Guard
-Validates that critical option set values match an expected configuration. Detects value drift and can restore mismatched labels back to the expected state.
+Three tools in one page:
+- **Option Set Guard** — validates that critical option set values match the expected configuration and restores any that have drifted
+- **Document vs Dev** — paste a table from any app (Loop, Excel, Google Sheets, Notion) and compare it against live dev environment values
+- **Environment Comparison** — diff option set values between two environments side by side
 
-### 03 · Document vs Dev
-Paste a table from any app (Loop, Excel, Google Sheets, Notion) and compare it against live dev environment option set values. Identifies mismatches, missing values, and unrecognised option sets.
+### 03 · Deployment Readiness Checker
+Runs automated checks across an environment and produces a pass/fail report covering: active layer components, cloud flow states, solution presence, environment variables, connection references, and option set integrity. Includes a fix preview showing what can be auto-remediated vs. what requires manual action.
 
-### 04 · Deployment Readiness Checker
-Runs automated checks across an environment and produces a pass/fail report covering: active layer components, cloud flow states, solution presence, environment variables, connection references, and option set integrity.
+### 04 · Environment Comparison
+Diffs two Dataverse environments side by side across solutions, environment variables, connection references, and cloud flows — highlighting what's different, missing, or extra.
 
-### 05 · Environment Comparison
-Diffs two Dataverse environments side by side across solutions, environment variables, connection references, and cloud flows.
+### 05 · Cloud Flow Monitor
+Full visibility into every cloud flow without clicking through Power Apps.
+
+- **Flow Health** — run history, failure counts, and last error messages for the past 7 days
+- **Silent Trigger Detection** — flags enabled flows that haven't triggered in 7+ days or have never run
+- **Out of Sync** — compares flow states between two environments to surface configuration drift
+- **Connection Reference Health Map** — shows every connection reference, whether it has a live credential, which flows depend on it, and the blast radius if it breaks. Includes a visual graph and per-connection mini blast radius chart
+- **Auto-fix** — for broken Dataverse connection references, finds a healthy donor reference and copies its credential across (requires confirmation before executing)
 
 ---
 
 ## Project structure
 
 ```
-active-layer-auditor/
+vantage/
 ├── backend/
 │   ├── src/
 │   │   ├── index.ts              # Express server entry point
 │   │   ├── dataverse.ts          # Dataverse API client + scan logic
 │   │   ├── optionsets.ts         # Option Set Guard logic
-│   │   ├── pastecompare.ts       # Document vs Dev paste parser + comparison
+│   │   ├── pastecompare.ts       # Document vs Dev paste parser
 │   │   ├── readiness.ts          # Deployment Readiness logic
 │   │   ├── comparison.ts         # Environment Comparison logic
-│   │   ├── remediation.ts        # Auto-fix plan builder (read-only)
+│   │   ├── remediation.ts        # Auto-fix plan builder
+│   │   ├── flows.ts              # Cloud Flow health + trigger detection
+│   │   ├── connectionrefs.ts     # Connection Reference health + auto-fix
 │   │   ├── types.ts              # Shared TypeScript types
 │   │   └── routes/               # Express route handlers
 │   ├── .env                      # Your credentials — create this, never commit it
@@ -166,7 +154,8 @@ active-layer-auditor/
 ├── frontend/
 │   ├── src/
 │   │   ├── pages/                # One file per page
-│   │   └── components/           # Shared UI components
+│   │   ├── components/           # Shared UI components
+│   │   └── hooks/                # Shared React hooks (e.g. URL persistence)
 │   ├── .env                      # Your frontend config — create this
 │   ├── .env.example              # Template showing what .env needs
 │   └── package.json
