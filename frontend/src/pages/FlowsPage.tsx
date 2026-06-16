@@ -730,10 +730,9 @@ function MiniBlastMap({ connRef }: { connRef: ConnectionRefHealth }) {
 
 type FixState = 'idle' | 'confirming' | 'running' | 'success' | 'error'
 
-function ConnRefRow({ connRef, environmentUrl, environmentId }: {
+function ConnRefRow({ connRef, environmentUrl }: {
   connRef: ConnectionRefHealth
   environmentUrl: string
-  environmentId: string | null
 }) {
   const ref = connRef
   const [expanded, setExpanded]   = useState(false)
@@ -742,9 +741,8 @@ function ConnRefRow({ connRef, environmentUrl, environmentId }: {
 
   const isDataverse = ref.connectorId.includes('commondataservice')
   const canAutoFix  = ref.status === 'broken' && isDataverse
-  const powerAppsUrl = environmentId
-    ? `https://make.powerapps.com/environments/${environmentId}/connections`
-    : 'https://make.powerapps.com'
+  const base = environmentUrl.replace(/\/$/, '')
+  const powerAppsUrl = `${base}/main.aspx?forceUCI=1&pagetype=entitylist&etn=connectionreference`
 
   async function runFix() {
     setFixState('running')
@@ -1089,7 +1087,7 @@ function ConnectionRefSection() {
                   </thead>
                   <tbody>
                     {filtered.slice(0, showAll ? undefined : 10).map(ref => (
-                      <ConnRefRow key={ref.id} connRef={ref} environmentUrl={data!.environmentUrl} environmentId={data?.environmentId ?? null} />
+                      <ConnRefRow key={ref.id} connRef={ref} environmentUrl={data!.environmentUrl} />
                     ))}
                   </tbody>
                 </table>
