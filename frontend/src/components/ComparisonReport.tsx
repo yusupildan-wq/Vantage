@@ -144,13 +144,13 @@ function SectionCard({ section, sourceLabel, targetLabel }: {
 
   const visible = filter === 'all' ? section.items : section.items.filter(i => i.status === filter)
 
-  const TABS: { key: FilterTab; label: string; count: number }[] = [
-    { key: 'all',         label: 'All',          count: section.items.length },
-    { key: 'different',   label: 'Different',    count: counts.different },
-    { key: 'only_source', label: 'Source Only',  count: counts.only_source },
-    { key: 'only_target', label: 'Target Only',  count: counts.only_target },
-    { key: 'match',       label: 'Match',        count: counts.match },
-  ].filter(t => t.key === 'all' || t.count > 0)
+  const TABS = ([
+    { key: 'all'         as FilterTab, label: 'All',         count: section.items.length },
+    { key: 'different'   as FilterTab, label: 'Different',   count: counts.different },
+    { key: 'only_source' as FilterTab, label: 'Source Only', count: counts.only_source },
+    { key: 'only_target' as FilterTab, label: 'Target Only', count: counts.only_target },
+    { key: 'match'       as FilterTab, label: 'Match',       count: counts.match },
+  ]).filter(t => t.key === 'all' || t.count > 0)
 
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>

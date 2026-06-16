@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
 
 type FlowCompareStatus = 'match' | 'drift' | 'source_only' | 'target_only'
 type CompareFilter = 'all' | 'drift' | 'source_only' | 'target_only' | 'match'
@@ -918,7 +919,7 @@ function ConnRefRow({ connRef, environmentUrl, environmentId }: {
 // ─── Connection ref section (Section 03) ────────────────────────────────────
 
 function ConnectionRefSection() {
-  const [inputUrl, setInputUrl]   = useState('')
+  const [inputUrl, setInputUrl]   = useEnvironmentUrl()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError]         = useState<string | null>(null)
   const [data, setData]           = useState<ConnectionRefsResponse | null>(null)
@@ -1112,21 +1113,21 @@ function ConnectionRefSection() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function FlowsPage() {
-  const [inputUrl, setInputUrl]   = useState('')
+  const [inputUrl, setInputUrl]   = useEnvironmentUrl()
 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError]         = useState<string | null>(null)
   const [data, setData]           = useState<FlowHealthResponse | null>(null)
   const [filter, setFilter]       = useState<FilterTab>('all')
   const [showAll, setShowAll]     = useState(false)
+  const [search, setSearch]       = useState('')
+  const [scannedAt, setScannedAt] = useState<Date | null>(null)
 
-  async function handleCheck(e: React.FormEvent) {
-    e.preventDefault()
+  async function fetchFlows(url: string) {
     setIsLoading(true)
     setError(null)
     setData(null)
-    const url = inputUrl.trim()
-
+    setSearch('')
     try {
       let resp: Response
       try {
@@ -1138,11 +1139,17 @@ export default function FlowsPage() {
       const json = await resp.json()
       if (!resp.ok) throw new Error(json.error ?? 'Failed to fetch flows')
       setData(json)
+      setScannedAt(new Date())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  function handleCheck(e: React.FormEvent) {
+    e.preventDefault()
+    fetchFlows(inputUrl.trim())
   }
 
   const flows = data?.flows ?? []
@@ -1154,13 +1161,14 @@ export default function FlowsPage() {
     silent:   flows.filter(f => f.enabled && f.triggerHealth !== 'ok').length,
   }
 
+  const q = search.toLowerCase()
   const filtered = flows.filter(f => {
     if (filter === 'failing')  return f.failureCount7d > 0
     if (filter === 'disabled') return !f.enabled
     if (filter === 'silent')   return f.enabled && f.triggerHealth !== 'ok'
     if (filter === 'healthy')  return f.enabled && f.failureCount7d === 0 && f.triggerHealth === 'ok'
     return true
-  })
+  }).filter(f => !q || f.name.toLowerCase().includes(q))
 
   const tabs: { key: FilterTab; label: string; count: number }[] = [
     { key: 'all',      label: 'All',      count: summary.total },
@@ -1277,19 +1285,54 @@ export default function FlowsPage() {
                 ))}
               </div>
 
-              {/* Filter tabs */}
-              <div className="px-6 py-3 flex gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
-                {tabs.map(t => (
-                  <button key={t.key}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
-                    onClick={() => { setFilter(t.key); setShowAll(false) }}
-                    style={filter === t.key
-                      ? { backgroundColor: 'rgba(96,165,250,0.1)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.25)' }
-                      : { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-bright)' }
-                    }>
-                    {t.label} <span className="ml-1 opacity-60">{t.count}</span>
+              {/* Filter tabs + search + meta */}
+              <div className="px-6 py-3 flex flex-wrap items-center justify-between gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                <div className="flex gap-2 flex-wrap">
+                  {tabs.map(t => (
+                    <button key={t.key}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
+                      onClick={() => { setFilter(t.key); setShowAll(false) }}
+                      style={filter === t.key
+                        ? { backgroundColor: 'rgba(96,165,250,0.1)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.25)' }
+                        : { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-bright)' }
+                      }>
+                      {t.label} <span className="ml-1 opacity-60">{t.count}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {scannedAt && (
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Scanned {Math.floor((Date.now() - scannedAt.getTime()) / 60000) < 1
+                        ? 'just now'
+                        : `${Math.floor((Date.now() - scannedAt.getTime()) / 60000)}m ago`}
+                    </span>
+                  )}
+                  <input
+                    type="text"
+                    placeholder="Search flows…"
+                    value={search}
+                    onChange={e => { setSearch(e.target.value); setShowAll(false) }}
+                    className="rounded-lg px-3 py-1.5 text-xs transition-all focus:outline-none"
+                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', color: 'var(--text-primary)', width: '160px' }}
+                    onFocus={e => { e.currentTarget.style.borderColor = 'rgba(96,165,250,0.4)'; e.currentTarget.style.boxShadow = '0 0 0 2px rgba(96,165,250,0.08)' }}
+                    onBlur={e =>  { e.currentTarget.style.borderColor = 'var(--border-mid)'; e.currentTarget.style.boxShadow = 'none' }}
+                  />
+                  <button
+                    onClick={() => fetchFlows(inputUrl.trim())}
+                    disabled={isLoading}
+                    title="Refresh"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg transition-all disabled:opacity-30"
+                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', color: 'var(--text-secondary)' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#60a5fa'; e.currentTarget.style.borderColor = 'rgba(96,165,250,0.3)' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border-mid)' }}
+                  >
+                    <svg className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                    </svg>
                   </button>
-                ))}
+                </div>
               </div>
 
               {/* Table */}

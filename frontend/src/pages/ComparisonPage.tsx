@@ -1,21 +1,37 @@
 import { useState } from 'react'
 import { ComparisonReport } from '../types'
 import ComparisonReportView from '../components/ComparisonReport'
+import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
 
 type RunState = 'idle' | 'running' | 'done' | 'error'
 
+const COMPARE_STEPS = [
+  'Connecting to source environment',
+  'Connecting to target environment',
+  'Comparing solutions',
+  'Comparing environment variables',
+  'Comparing connection references',
+  'Comparing cloud flows',
+]
+
 export default function ComparisonPage() {
-  const [sourceUrl, setSourceUrl] = useState('')
-  const [targetUrl, setTargetUrl] = useState('')
+  const [sourceUrl, setSourceUrl] = useEnvironmentUrl()
+  const [targetUrl, setTargetUrl] = useEnvironmentUrl('ala_target_url')
   const [runState, setRunState]   = useState<RunState>('idle')
   const [report, setReport]       = useState<ComparisonReport | null>(null)
   const [error, setError]         = useState<string | null>(null)
+  const [currentStep, setCurrentStep] = useState(0)
 
   async function handleRun(e: React.FormEvent) {
     e.preventDefault()
     setRunState('running')
     setReport(null)
     setError(null)
+    setCurrentStep(0)
+
+    const interval = setInterval(() => {
+      setCurrentStep(v => Math.min(v + 1, COMPARE_STEPS.length - 1))
+    }, 800)
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
@@ -34,6 +50,8 @@ export default function ComparisonPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not connect to backend')
       setRunState('error')
+    } finally {
+      clearInterval(interval)
     }
   }
 
@@ -165,23 +183,42 @@ export default function ComparisonPage() {
           </div>
         </form>
 
-        {/* Running state */}
+        {/* Running state — animated checklist */}
         {isRunning && (
           <div
-            className="rounded-xl p-6 flex items-center gap-4 animate-fade-in"
+            className="rounded-xl p-6 space-y-4 animate-fade-in"
             style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
           >
-            <svg className="animate-spin h-5 w-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--accent-bright)' }}>
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-            </svg>
-            <div>
-              <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                Fetching data from both environments…
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                Querying solutions, environment variables, connection references, and flows in parallel.
-              </p>
+            <p className="font-display text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Comparing environments…
+            </p>
+            <div className="space-y-2.5">
+              {COMPARE_STEPS.map((step, i) => {
+                const done    = i < currentStep
+                const current = i === currentStep
+                return (
+                  <div key={i} className="flex items-center gap-3">
+                    <div
+                      className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300"
+                      style={done
+                        ? { backgroundColor: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)' }
+                        : current
+                          ? { backgroundColor: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)' }
+                          : { backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)' }
+                      }
+                    >
+                      {done    && <span className="text-green-400 text-xs leading-none">✓</span>}
+                      {current && <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-bright)' }} />}
+                    </div>
+                    <span
+                      className="text-xs transition-colors duration-300"
+                      style={{ color: done ? '#4ade80' : current ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                    >
+                      {step}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}

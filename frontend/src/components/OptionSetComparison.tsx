@@ -1,8 +1,9 @@
 import { useState } from 'react'
+import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
 
 export default function OptionSetComparison() {
-  const [compareSourceUrl, setCompareSourceUrl] = useState('')
-  const [compareTargetUrl, setCompareTargetUrl] = useState('')
+  const [compareSourceUrl, setCompareSourceUrl] = useEnvironmentUrl()
+  const [compareTargetUrl, setCompareTargetUrl] = useEnvironmentUrl('ala_target_url')
   const [comparisonResults, setComparisonResults] = useState<any>(null)
   const [isComparing, setIsComparing] = useState(false)
   const [comparisonError, setComparisonError] = useState<string | null>(null)
