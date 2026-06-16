@@ -68,10 +68,10 @@ export async function getFlowHealth(client: AxiosInstance): Promise<FlowHealth[]
 
   const [recentResp, failureResp] = await Promise.all([
     client.get(
-      `/flowsessions?$orderby=completedon desc&$top=500&$select=statecode,completedon,startedon,_workflow_value,context&$filter=completedon ge ${sevenDaysAgo}`
+      `/flowsessions?$orderby=completedon desc&$top=500&$select=statecode,completedon,startedon,_regardingobjectid_value,context&$filter=completedon ge ${sevenDaysAgo}`
     ),
     client.get(
-      `/flowsessions?$filter=statecode eq 2 and completedon ge ${sevenDaysAgo}&$select=_workflow_value,statecode,completedon`
+      `/flowsessions?$filter=statecode eq 2 and completedon ge ${sevenDaysAgo}&$select=_regardingobjectid_value,statecode,completedon`
     ),
   ])
 
@@ -81,7 +81,7 @@ export async function getFlowHealth(client: AxiosInstance): Promise<FlowHealth[]
   // Group recent sessions by flow id
   const sessionsByFlow = new Map<string, any[]>()
   for (const s of recentSessions) {
-    const fid = s['_workflow_value']
+    const fid = s['_regardingobjectid_value']
     if (!fid) continue
     if (!sessionsByFlow.has(fid)) sessionsByFlow.set(fid, [])
     sessionsByFlow.get(fid)!.push(s)
@@ -90,7 +90,7 @@ export async function getFlowHealth(client: AxiosInstance): Promise<FlowHealth[]
   // Count failures per flow
   const failuresByFlow = new Map<string, number>()
   for (const s of failedSessions) {
-    const fid = s['_workflow_value']
+    const fid = s['_regardingobjectid_value']
     if (!fid) continue
     failuresByFlow.set(fid, (failuresByFlow.get(fid) ?? 0) + 1)
   }
