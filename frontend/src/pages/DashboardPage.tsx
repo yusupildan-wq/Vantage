@@ -240,6 +240,22 @@ export default function DashboardPage() {
             }
             onClick={() => navigate('/pipelines')}
           />
+
+          <FeatureCard
+            index="07"
+            title="Pipeline Optimizer"
+            description="Automatically detect and fix slow pipeline patterns — then ship improvements as a PR."
+            detail="Analyzes your YAML pipeline for shallow clones, missing caches, legacy task versions, and Power Platform-specific bottlenecks. Applies fixes to a new branch and opens a PR to main."
+            accentColor="#f59e0b"
+            accentGlow="rgba(245,158,11,0.1)"
+            topLine="linear-gradient(90deg, transparent, rgba(245,158,11,0.55), transparent)"
+            icon={
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" style={{ color: '#f59e0b' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+              </svg>
+            }
+            onClick={() => navigate('/optimizer')}
+          />
         </div>
       </main>
     </>
