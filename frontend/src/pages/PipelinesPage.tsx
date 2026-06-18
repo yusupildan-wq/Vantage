@@ -34,6 +34,23 @@ interface PipelineSummary {
   lastRunStatus: string | null
 }
 
+interface SuggestedFix {
+  title: string
+  fix: string
+}
+
+interface FailedStep {
+  stepName: string
+  logLines: string[]
+  suggestedFix: SuggestedFix | null
+}
+
+interface RunErrorState {
+  loading: boolean
+  steps: FailedStep[] | null
+  error: string | null
+}
+
 interface PipelineHealthResponse {
   organization: string
   project: string
@@ -210,6 +227,9 @@ export default function PipelinesPage() {
   const [timeRange, setTimeRange]   = useState<TimeRange>(30)
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
+  const [runErrors, setRunErrors] = useState<Map<number, RunErrorState>>(new Map())
+  const [actionInProgress, setActionInProgress] = useState<Map<number, 'cancelling' | 'retrying'>>(new Map())
+  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const RUNS_PAGE      = 25
   const PIPELINES_PAGE = 5
@@ -245,18 +265,81 @@ export default function PipelinesPage() {
     }
   }, [projectUrl, timeRange])
 
+  const runs = data?.runs ?? []
+
   useEffect(() => {
     if (!autoRefresh || !data) return
     const id = setInterval(() => fetchData(true), 3 * 60 * 1000)
     return () => clearInterval(id)
   }, [autoRefresh, data, fetchData])
 
+  useEffect(() => {
+    if (!expandedId || !projectUrl.trim()) return
+    const run = runs.find(r => r.id === expandedId)
+    if (!run || (run.status !== 'failed' && run.status !== 'partiallySucceeded')) return
+    if (runErrors.has(expandedId)) return
+    setRunErrors(prev => new Map(prev).set(expandedId, { loading: true, steps: null, error: null }))
+    const params = new URLSearchParams({ projectUrl: projectUrl.trim(), buildId: String(expandedId) })
+    apiFetch(`${API_URL}/api/pipelines/run-error?${params}`)
+      .then(r => r.json())
+      .then(json => {
+        if (json.error) throw new Error(json.error)
+        setRunErrors(prev => new Map(prev).set(expandedId, { loading: false, steps: json.failedSteps, error: null }))
+      })
+      .catch(err => {
+        setRunErrors(prev => new Map(prev).set(expandedId, { loading: false, steps: null, error: err.message }))
+      })
+  }, [expandedId, runs, projectUrl, runErrors])
+
   function handleLoad(e: React.FormEvent) {
     e.preventDefault()
     fetchData(false)
   }
 
-  const runs = data?.runs ?? []
+  async function cancelRun(buildId: number) {
+    setActionInProgress(prev => new Map(prev).set(buildId, 'cancelling'))
+    setActionMessage(null)
+    try {
+      const resp = await apiFetch(`${API_URL}/api/pipelines/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectUrl: projectUrl.trim(), buildId }),
+      })
+      const json = await resp.json()
+      if (!resp.ok) throw new Error(json.error ?? 'Cancel failed')
+      setActionMessage({ type: 'success', text: `Run #${buildId} is being cancelled.` })
+      setTimeout(() => fetchData(true), 2000)
+    } catch (err) {
+      setActionMessage({ type: 'error', text: err instanceof Error ? err.message : 'Cancel failed' })
+    } finally {
+      setActionInProgress(prev => { const m = new Map(prev); m.delete(buildId); return m })
+    }
+  }
+
+  async function retryRun(buildId: number) {
+    setActionInProgress(prev => new Map(prev).set(buildId, 'retrying'))
+    setActionMessage(null)
+    try {
+      const resp = await apiFetch(`${API_URL}/api/pipelines/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectUrl: projectUrl.trim(), buildId }),
+      })
+      const json = await resp.json()
+      if (!resp.ok) throw new Error(json.error ?? 'Retry failed')
+      const msg = json.retriedStages?.length
+        ? `Retrying: ${(json.retriedStages as string[]).join(', ')}`
+        : json.newBuildId
+        ? `New run queued (#${json.newBuildId})`
+        : 'Retry queued'
+      setActionMessage({ type: 'success', text: msg })
+      setTimeout(() => fetchData(true), 3000)
+    } catch (err) {
+      setActionMessage({ type: 'error', text: err instanceof Error ? err.message : 'Retry failed' })
+    } finally {
+      setActionInProgress(prev => { const m = new Map(prev); m.delete(buildId); return m })
+    }
+  }
 
   const filtered = runs.filter(r => {
     if (filter !== 'all' && r.status !== filter) return false
@@ -417,6 +500,288 @@ export default function PipelinesPage() {
 
         {data && (
           <>
+            {/* History and Report */}
+            <div className="relative rounded-xl overflow-hidden"
+              style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <div className="absolute top-0 left-0 right-0 h-px"
+                style={{ background: 'linear-gradient(90deg, transparent, rgba(45,212,191,0.4), transparent)' }} />
+
+              {actionMessage && (
+                <div className="px-6 py-3 flex items-center justify-between"
+                  style={{
+                    backgroundColor: actionMessage.type === 'success' ? 'rgba(45,212,191,0.06)' : 'rgba(239,68,68,0.06)',
+                    borderBottom: '1px solid var(--border)',
+                  }}>
+                  <p className="text-xs font-medium" style={{ color: actionMessage.type === 'success' ? '#2dd4bf' : '#f87171' }}>
+                    {actionMessage.text}
+                  </p>
+                  <button onClick={() => setActionMessage(null)} className="text-xs opacity-50 hover:opacity-100" style={{ color: 'var(--text-muted)' }}>✕</button>
+                </div>
+              )}
+
+              <div className="px-6 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <h3 className="font-display font-semibold text-base" style={{ color: 'var(--text-primary)' }}>
+                      History and Report
+                    </h3>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      Showing {filtered.length} of {runs.length} runs
+                    </p>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search pipeline or branch…"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="rounded-lg px-3 py-2 text-xs w-56 focus:outline-none transition-all"
+                    style={inputStyle}
+                    onFocus={e => { e.currentTarget.style.borderColor = 'rgba(45,212,191,0.4)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(45,212,191,0.06)' }}
+                    onBlur={e =>  { e.currentTarget.style.borderColor = 'var(--border-mid)'; e.currentTarget.style.boxShadow = 'none' }}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {FILTERS.map(f => {
+                    const count = filterCounts[f.key] ?? 0
+                    if (f.key !== 'all' && count === 0) return null
+                    const active = filter === f.key
+                    return (
+                      <button key={f.key} onClick={() => setFilter(f.key)}
+                        className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all"
+                        style={active
+                          ? { backgroundColor: 'rgba(45,212,191,0.12)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.3)' }
+                          : { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-mid)' }}>
+                        {f.label}
+                        <span className="ml-1.5 opacity-60">{count}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {filtered.length === 0 ? (
+                <div className="px-6 py-12 text-center">
+                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                    {runs.length === 0 ? 'No pipeline runs found.' : 'No runs match the current filter.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        {['#', 'Pipeline', 'Branch', 'Trigger', 'Status', 'Started', 'Duration', 'By', '', ''].map((h, i) => (
+                          <th key={i} className="px-4 py-3 text-left text-xs font-semibold tracking-wider uppercase"
+                            style={{ color: 'var(--text-muted)' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleRuns.map((run, i) => {
+                        const isExpanded = expandedId === run.id
+                        const isLast = i === visibleRuns.length - 1
+                        return (
+                          <>
+                            <tr key={run.id}
+                              onClick={() => setExpandedId(isExpanded ? null : run.id)}
+                              className="cursor-pointer transition-colors duration-150"
+                              style={{
+                                borderBottom: (!isExpanded && !isLast) ? '1px solid var(--border)' : undefined,
+                                backgroundColor: isExpanded ? 'rgba(45,212,191,0.03)' : undefined,
+                              }}
+                              onMouseEnter={e => { if (!isExpanded) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-elevated)' }}
+                              onMouseLeave={e => { if (!isExpanded) (e.currentTarget as HTMLElement).style.backgroundColor = '' }}
+                            >
+                              <td className="px-4 py-3.5">
+                                <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+                                  #{run.buildNumber}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3.5 max-w-[220px]">
+                                <p className="font-medium text-xs truncate" style={{ color: 'var(--text-primary)' }} title={run.pipelineName}>
+                                  {run.pipelineName}
+                                </p>
+                                <p className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>
+                                  {run.pipelineFolder}
+                                </p>
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <span className="text-xs font-mono truncate max-w-[100px] block" style={{ color: 'var(--text-secondary)' }} title={run.branch}>
+                                  {run.branch || '—'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{run.reason}</span>
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <StatusBadge status={run.status} />
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}
+                                  title={formatDate(run.startedAt)}>
+                                  {timeAgo(run.startedAt)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3.5 text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
+                                {formatDuration(run.durationMs)}
+                              </td>
+                              <td className="px-4 py-3.5 text-xs max-w-[110px] truncate" style={{ color: 'var(--text-muted)' }}
+                                title={run.triggeredBy}>
+                                {run.triggeredBy}
+                              </td>
+                              <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
+                                {run.status === 'running' && (
+                                  <button
+                                    onClick={() => cancelRun(run.id)}
+                                    disabled={!!actionInProgress.get(run.id)}
+                                    title="Cancel this run"
+                                    className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md font-medium transition-all disabled:opacity-40"
+                                    style={{ color: '#f87171', backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                                    {actionInProgress.get(run.id) === 'cancelling'
+                                      ? <span className="w-3 h-3 rounded-full border-2 border-red-800 border-t-red-400 animate-spin" />
+                                      : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>}
+                                    Cancel
+                                  </button>
+                                )}
+                                {(run.status === 'failed' || run.status === 'partiallySucceeded') && (
+                                  <button
+                                    onClick={() => retryRun(run.id)}
+                                    disabled={!!actionInProgress.get(run.id)}
+                                    title="Retry failed jobs"
+                                    className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md font-medium transition-all disabled:opacity-40"
+                                    style={{ color: '#2dd4bf', backgroundColor: 'rgba(45,212,191,0.08)', border: '1px solid rgba(45,212,191,0.2)' }}>
+                                    {actionInProgress.get(run.id) === 'retrying'
+                                      ? <span className="w-3 h-3 rounded-full border-2 border-teal-800 border-t-teal-400 animate-spin" />
+                                      : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>}
+                                    Retry
+                                  </button>
+                                )}
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <svg className="w-3.5 h-3.5 transition-transform duration-200"
+                                  style={{ color: 'var(--text-muted)', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                                  fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                                </svg>
+                              </td>
+                            </tr>
+
+                            {isExpanded && (
+                              <tr key={`${run.id}-detail`}
+                                style={{ borderBottom: !isLast ? '1px solid var(--border)' : undefined }}>
+                                <td colSpan={10} className="px-5 pb-4 pt-0">
+                                  <div className="rounded-lg p-4 space-y-3"
+                                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)' }}>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                                      <div>
+                                        <p className="uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Started</p>
+                                        <p style={{ color: 'var(--text-primary)' }}>{formatDate(run.startedAt)}</p>
+                                      </div>
+                                      {run.completedAt && (
+                                        <div>
+                                          <p className="uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Completed</p>
+                                          <p style={{ color: 'var(--text-primary)' }}>{formatDate(run.completedAt)}</p>
+                                        </div>
+                                      )}
+                                      <div>
+                                        <p className="uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Duration</p>
+                                        <p className="font-mono" style={{ color: 'var(--text-primary)' }}>{formatDuration(run.durationMs)}</p>
+                                      </div>
+                                      <div>
+                                        <p className="uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Build ID</p>
+                                        <p className="font-mono" style={{ color: 'var(--text-muted)' }}>{run.id}</p>
+                                      </div>
+                                    </div>
+                                    {run.status === 'succeeded' && (
+                                      <p className="text-xs" style={{ color: '#4ade80' }}>Pipeline completed successfully.</p>
+                                    )}
+                                    {(run.status === 'failed' || run.status === 'partiallySucceeded') && (() => {
+                                      const err = runErrors.get(run.id)
+                                      if (!err || err.loading) return (
+                                        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                                          <span className="w-3 h-3 rounded-full border-2 border-slate-600 border-t-slate-300 animate-spin" />
+                                          Fetching error details…
+                                        </div>
+                                      )
+                                      if (err.error) return (
+                                        <p className="text-xs" style={{ color: '#f87171' }}>Could not load logs: {err.error}</p>
+                                      )
+                                      if (!err.steps?.length) return (
+                                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No failed steps found in logs.</p>
+                                      )
+                                      return (
+                                        <div className="space-y-3">
+                                          {err.steps.map((step, si) => (
+                                            <div key={si} className="space-y-2">
+                                              {step.suggestedFix && (
+                                                <div className="rounded-lg px-4 py-3"
+                                                  style={{ backgroundColor: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.25)' }}>
+                                                  <div className="flex items-start gap-2.5">
+                                                    <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="#fbbf24">
+                                                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                                                    </svg>
+                                                    <div>
+                                                      <p className="text-xs font-semibold mb-1" style={{ color: '#fbbf24' }}>
+                                                        {step.suggestedFix.title}
+                                                      </p>
+                                                      <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                                                        {step.suggestedFix.fix}
+                                                      </p>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              )}
+                                              <p className="text-[10px] font-semibold uppercase tracking-wider"
+                                                style={{ color: '#f87171' }}>
+                                                Failed step: {step.stepName}
+                                              </p>
+                                              <div className="rounded-lg overflow-auto max-h-64"
+                                                style={{ backgroundColor: '#0d1117', border: '1px solid rgba(239,68,68,0.2)' }}>
+                                                <pre className="px-4 py-3 text-[11px] font-mono leading-relaxed whitespace-pre-wrap break-all">
+                                                  {step.logLines.map((line, li) => {
+                                                    const isError = line.includes('##[error]') || /error:/i.test(line) || line.includes('FAILED') || line.includes('npm ERR!')
+                                                    const isSection = line.includes('##[section]')
+                                                    const isCmd = line.includes('##[command]')
+                                                    const color = isError ? '#f87171' : isSection ? '#2dd4bf' : isCmd ? '#94a3b8' : '#cbd5e1'
+                                                    const clean = line.replace(/##\[\w+\]/g, '')
+                                                    return (
+                                                      <span key={li} style={{ color, display: 'block' }}>
+                                                        {clean}
+                                                      </span>
+                                                    )
+                                                  })}
+                                                </pre>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )
+                                    })()}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {filtered.length > RUNS_PAGE && (
+                <div className="px-6 py-3" style={{ borderTop: '1px solid var(--border)' }}>
+                  <button onClick={() => setShowAllRuns(v => !v)}
+                    className="text-xs font-medium transition-colors"
+                    style={{ color: '#2dd4bf' }}>
+                    {showAllRuns
+                      ? '↑ Show less'
+                      : `↓ Show ${filtered.length - RUNS_PAGE} more runs`}
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Summary cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="Total Runs" value={data.totalRuns}
@@ -615,192 +980,6 @@ export default function PipelinesPage() {
               </div>
             )}
 
-            {/* Run history */}
-            <div className="relative rounded-xl overflow-hidden"
-              style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-              <div className="absolute top-0 left-0 right-0 h-px"
-                style={{ background: 'linear-gradient(90deg, transparent, rgba(45,212,191,0.4), transparent)' }} />
-
-              <div className="px-6 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <h3 className="font-display font-semibold text-base" style={{ color: 'var(--text-primary)' }}>
-                      Run History
-                    </h3>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                      Showing {filtered.length} of {runs.length} runs
-                    </p>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Search pipeline or branch…"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className="rounded-lg px-3 py-2 text-xs w-56 focus:outline-none transition-all"
-                    style={inputStyle}
-                    onFocus={e => { e.currentTarget.style.borderColor = 'rgba(45,212,191,0.4)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(45,212,191,0.06)' }}
-                    onBlur={e =>  { e.currentTarget.style.borderColor = 'var(--border-mid)'; e.currentTarget.style.boxShadow = 'none' }}
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {FILTERS.map(f => {
-                    const count = filterCounts[f.key] ?? 0
-                    if (f.key !== 'all' && count === 0) return null
-                    const active = filter === f.key
-                    return (
-                      <button key={f.key} onClick={() => setFilter(f.key)}
-                        className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all"
-                        style={active
-                          ? { backgroundColor: 'rgba(45,212,191,0.12)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.3)' }
-                          : { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-mid)' }}>
-                        {f.label}
-                        <span className="ml-1.5 opacity-60">{count}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {filtered.length === 0 ? (
-                <div className="px-6 py-12 text-center">
-                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                    {runs.length === 0 ? 'No pipeline runs found.' : 'No runs match the current filter.'}
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                        {['#', 'Pipeline', 'Branch', 'Trigger', 'Status', 'Started', 'Duration', 'By', ''].map(h => (
-                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold tracking-wider uppercase"
-                            style={{ color: 'var(--text-muted)' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleRuns.map((run, i) => {
-                        const isExpanded = expandedId === run.id
-                        const isLast = i === visibleRuns.length - 1
-                        return (
-                          <>
-                            <tr key={run.id}
-                              onClick={() => setExpandedId(isExpanded ? null : run.id)}
-                              className="cursor-pointer transition-colors duration-150"
-                              style={{
-                                borderBottom: (!isExpanded && !isLast) ? '1px solid var(--border)' : undefined,
-                                backgroundColor: isExpanded ? 'rgba(45,212,191,0.03)' : undefined,
-                              }}
-                              onMouseEnter={e => { if (!isExpanded) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-elevated)' }}
-                              onMouseLeave={e => { if (!isExpanded) (e.currentTarget as HTMLElement).style.backgroundColor = '' }}
-                            >
-                              <td className="px-4 py-3.5">
-                                <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
-                                  #{run.buildNumber}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3.5 max-w-[220px]">
-                                <p className="font-medium text-xs truncate" style={{ color: 'var(--text-primary)' }} title={run.pipelineName}>
-                                  {run.pipelineName}
-                                </p>
-                                <p className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>
-                                  {run.pipelineFolder}
-                                </p>
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <span className="text-xs font-mono truncate max-w-[100px] block" style={{ color: 'var(--text-secondary)' }} title={run.branch}>
-                                  {run.branch || '—'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{run.reason}</span>
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <StatusBadge status={run.status} />
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}
-                                  title={formatDate(run.startedAt)}>
-                                  {timeAgo(run.startedAt)}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3.5 text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
-                                {formatDuration(run.durationMs)}
-                              </td>
-                              <td className="px-4 py-3.5 text-xs max-w-[110px] truncate" style={{ color: 'var(--text-muted)' }}
-                                title={run.triggeredBy}>
-                                {run.triggeredBy}
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <svg className="w-3.5 h-3.5 transition-transform duration-200"
-                                  style={{ color: 'var(--text-muted)', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                                  fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                                </svg>
-                              </td>
-                            </tr>
-
-                            {isExpanded && (
-                              <tr key={`${run.id}-detail`}
-                                style={{ borderBottom: !isLast ? '1px solid var(--border)' : undefined }}>
-                                <td colSpan={9} className="px-5 pb-4 pt-0">
-                                  <div className="rounded-lg p-4 space-y-3"
-                                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)' }}>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                                      <div>
-                                        <p className="uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Started</p>
-                                        <p style={{ color: 'var(--text-primary)' }}>{formatDate(run.startedAt)}</p>
-                                      </div>
-                                      {run.completedAt && (
-                                        <div>
-                                          <p className="uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Completed</p>
-                                          <p style={{ color: 'var(--text-primary)' }}>{formatDate(run.completedAt)}</p>
-                                        </div>
-                                      )}
-                                      <div>
-                                        <p className="uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Duration</p>
-                                        <p className="font-mono" style={{ color: 'var(--text-primary)' }}>{formatDuration(run.durationMs)}</p>
-                                      </div>
-                                      <div>
-                                        <p className="uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Build ID</p>
-                                        <p className="font-mono" style={{ color: 'var(--text-muted)' }}>{run.id}</p>
-                                      </div>
-                                    </div>
-                                    {run.status === 'succeeded' && (
-                                      <p className="text-xs" style={{ color: '#4ade80' }}>Pipeline completed successfully.</p>
-                                    )}
-                                    {run.status === 'partiallySucceeded' && (
-                                      <p className="text-xs" style={{ color: '#fbbf24' }}>Pipeline partially succeeded — some stages may have failed.</p>
-                                    )}
-                                    {(run.status === 'failed' || run.status === 'cancelled') && (
-                                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                        Open build #{run.buildNumber} in Azure DevOps to see the full logs and error details.
-                                      </p>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              {filtered.length > RUNS_PAGE && (
-                <div className="px-6 py-3" style={{ borderTop: '1px solid var(--border)' }}>
-                  <button onClick={() => setShowAllRuns(v => !v)}
-                    className="text-xs font-medium transition-colors"
-                    style={{ color: '#2dd4bf' }}>
-                    {showAllRuns
-                      ? '↑ Show less'
-                      : `↓ Show ${filtered.length - RUNS_PAGE} more runs`}
-                  </button>
-                </div>
-              )}
-            </div>
           </>
         )}
       </main>
