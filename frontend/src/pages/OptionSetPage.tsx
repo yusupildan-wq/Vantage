@@ -2,8 +2,7 @@ import { useState } from 'react'
 import OptionSetGuard from '../components/OptionSetGuard'
 import OptionSetComparison from '../components/OptionSetComparison'
 import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
-
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+import { apiFetch, API_URL } from '../api'
 
 // ─── Copy-Paste vs Dev inline result types ───────────────────────────────────
 
@@ -51,7 +50,7 @@ function PasteVsDevSection() {
     try {
       let resp: Response
       try {
-        resp = await fetch(`${API_URL}/api/optionsets/paste-compare`, {
+        resp = await apiFetch(`${API_URL}/api/optionsets/paste-compare`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pastedText, devUrl: devUrl.trim() }),

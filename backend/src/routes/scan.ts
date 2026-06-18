@@ -2,15 +2,19 @@ import { Router, Request, Response } from 'express'
 import axios from 'axios'
 import { saveScan } from '../db'
 import { scanEnvironment } from '../dataverse'
+import { validateEnvironmentUrl } from '../auth'
 
 export const scanRouter = Router()
 
 scanRouter.post('/', async (req: Request, res: Response) => {
   const { environmentUrl } = req.body
 
-  if (!environmentUrl) {
+  if (!environmentUrl || typeof environmentUrl !== 'string') {
     res.status(400).json({ error: 'environmentUrl is required' })
     return
+  }
+  try { validateEnvironmentUrl(environmentUrl) } catch (e) {
+    res.status(400).json({ error: (e as Error).message }); return
   }
 
   try {

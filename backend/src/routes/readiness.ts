@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import axios from 'axios'
 import { runReadinessCheck } from '../readiness'
+import { validateEnvironmentUrl } from '../auth'
 
 export const readinessRouter = Router()
 
@@ -9,6 +10,9 @@ readinessRouter.post('/check', async (req: Request, res: Response) => {
   if (!environmentUrl || typeof environmentUrl !== 'string') {
     res.status(400).json({ error: 'environmentUrl is required' })
     return
+  }
+  try { validateEnvironmentUrl(environmentUrl) } catch (e) {
+    res.status(400).json({ error: (e as Error).message }); return
   }
 
   try {

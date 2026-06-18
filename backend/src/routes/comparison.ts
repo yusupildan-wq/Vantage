@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import axios from 'axios'
 import { runComparison } from '../comparison'
+import { validateEnvironmentUrl } from '../auth'
 
 export const comparisonRouter = Router()
 
@@ -17,6 +18,9 @@ comparisonRouter.post('/run', async (req: Request, res: Response) => {
   if (sourceUrl.trim() === targetUrl.trim()) {
     res.status(400).json({ error: 'sourceUrl and targetUrl must be different environments' })
     return
+  }
+  try { validateEnvironmentUrl(sourceUrl); validateEnvironmentUrl(targetUrl) } catch (e) {
+    res.status(400).json({ error: (e as Error).message }); return
   }
 
   try {

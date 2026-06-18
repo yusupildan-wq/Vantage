@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ReadinessReport, RemediationPlan, RemediationItem } from '../types'
 import ReadinessReportView from '../components/ReadinessReport'
 import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
+import { apiFetch } from '../api'
 
 type RunState  = 'idle' | 'running' | 'done' | 'error'
 type PlanState = 'hidden' | 'loading' | 'ready' | 'error'
@@ -193,7 +194,7 @@ export default function ReadinessPage() {
     setPlanError(null)
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
-      const resp = await fetch(`${apiUrl}/api/remediation/plan`, {
+      const resp = await apiFetch(`${apiUrl}/api/remediation/plan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ environmentUrl: inputUrl.trim() }),
@@ -225,7 +226,7 @@ export default function ReadinessPage() {
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
-      const resp = await fetch(`${apiUrl}/api/readiness/check`, {
+      const resp = await apiFetch(`${apiUrl}/api/readiness/check`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ environmentUrl: inputUrl.trim() }),

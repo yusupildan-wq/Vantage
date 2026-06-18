@@ -4,6 +4,7 @@ import ResultsTable from '../components/ResultsTable'
 import EmptyState from '../components/EmptyState'
 import { ScanResult } from '../types'
 import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
+import { apiFetch } from '../api'
 
 const SCAN_STEPS = [
   'Connecting to environment',
@@ -33,7 +34,7 @@ export default function ScanPage() {
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
-      const response = await fetch(`${apiUrl}/api/scan`, {
+      const response = await apiFetch(`${apiUrl}/api/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ environmentUrl }),

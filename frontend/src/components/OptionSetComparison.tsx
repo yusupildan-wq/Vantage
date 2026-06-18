@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
+import { apiFetch } from '../api'
 
 export default function OptionSetComparison() {
   const [compareSourceUrl, setCompareSourceUrl] = useEnvironmentUrl()
@@ -15,7 +16,7 @@ export default function OptionSetComparison() {
     setComparisonError(null)
     setComparisonResults(null)
     try {
-      const resp = await fetch(`${apiUrl}/api/optionsets/compare`, {
+      const resp = await apiFetch(`${apiUrl}/api/optionsets/compare`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

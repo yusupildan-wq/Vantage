@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
+import { apiFetch } from '../api'
 
 type FlowCompareStatus = 'match' | 'drift' | 'source_only' | 'target_only'
 type CompareFilter = 'all' | 'drift' | 'source_only' | 'target_only' | 'match'
@@ -86,7 +87,7 @@ function FlowCompareSection() {
     try {
       let resp: Response
       try {
-        resp = await fetch(`${API_URL}/api/flows/compare?sourceUrl=${encodeURIComponent(sourceUrl.trim())}&targetUrl=${encodeURIComponent(targetUrl.trim())}`)
+        resp = await apiFetch(`${API_URL}/api/flows/compare?sourceUrl=${encodeURIComponent(sourceUrl.trim())}&targetUrl=${encodeURIComponent(targetUrl.trim())}`)
       } catch {
         setError(`Cannot reach the backend server at ${API_URL}. Make sure the backend is running.`)
         return
@@ -747,7 +748,7 @@ function ConnRefRow({ connRef, environmentUrl }: {
   async function runFix() {
     setFixState('running')
     try {
-      const resp = await fetch(`${API_URL}/api/connectionrefs/fix`, {
+      const resp = await apiFetch(`${API_URL}/api/connectionrefs/fix`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ environmentUrl, connectionRefId: ref.id }),
@@ -930,7 +931,7 @@ function ConnectionRefSection() {
     try {
       let resp: Response
       try {
-        resp = await fetch(`${API_URL}/api/connectionrefs/health?environmentUrl=${encodeURIComponent(inputUrl.trim())}`)
+        resp = await apiFetch(`${API_URL}/api/connectionrefs/health?environmentUrl=${encodeURIComponent(inputUrl.trim())}`)
       } catch {
         setError(`Cannot reach the backend server at ${API_URL}. Make sure the backend is running.`)
         return
@@ -1129,7 +1130,7 @@ export default function FlowsPage() {
     try {
       let resp: Response
       try {
-        resp = await fetch(`${API_URL}/api/flows/health?environmentUrl=${encodeURIComponent(url)}`)
+        resp = await apiFetch(`${API_URL}/api/flows/health?environmentUrl=${encodeURIComponent(url)}`)
       } catch {
         setError(`Cannot reach the backend server at ${API_URL}. Make sure the backend is running (cd backend, then npm run dev).`)
         return

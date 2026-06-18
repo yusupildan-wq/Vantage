@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { OptionSetCheckResult } from '../types'
+import { apiFetch } from '../api'
 
 interface Props {
   environmentUrl: string
@@ -63,7 +64,7 @@ export default function OptionSetGuard({ environmentUrl, columnLabels, apiEndpoi
       const endpoint = apiEndpoint ?? `${apiUrl}/api/optionsets/status`
       let resp: Response
       try {
-        resp = await fetch(`${endpoint}?environmentUrl=${encodeURIComponent(environmentUrl)}`)
+        resp = await apiFetch(`${endpoint}?environmentUrl=${encodeURIComponent(environmentUrl)}`)
       } catch {
         setError(`Cannot reach the backend server at ${apiUrl}. Make sure the backend is running (cd backend && npm run dev) and your frontend/.env has VITE_API_URL=http://localhost:3001.`)
         return
@@ -92,7 +93,7 @@ export default function OptionSetGuard({ environmentUrl, columnLabels, apiEndpoi
     setError(null)
     setRestoreMessage(null)
     try {
-      const resp = await fetch(`${apiUrl}/api/optionsets/restore`, {
+      const resp = await apiFetch(`${apiUrl}/api/optionsets/restore`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ environmentUrl }),

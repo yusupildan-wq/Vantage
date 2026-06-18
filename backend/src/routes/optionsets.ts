@@ -2,8 +2,8 @@ import { Router, Request, Response } from 'express'
 import path from 'path'
 import fs from 'fs'
 import axios from 'axios'
-import { ConfidentialClientApplication } from '@azure/msal-node'
 import { ClientConfig } from '../types'
+import { makeDataverseClient, validateEnvironmentUrl } from '../auth'
 import { checkOptionSets, restoreOptionSets } from '../optionsets'
 import { parsePastedContent, comparePastedWithDev } from '../pastecompare'
 
@@ -22,36 +22,14 @@ function loadClientConfig(environmentUrl: string): ClientConfig | null {
   return null
 }
 
-async function makeDataverseClient(environmentUrl: string) {
-  const msalClient = new ConfidentialClientApplication({
-    auth: {
-      clientId: process.env.AZURE_CLIENT_ID!,
-      clientSecret: process.env.AZURE_CLIENT_SECRET!,
-      authority: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}`,
-    },
-  })
-  const baseUrl = environmentUrl.endsWith('/') ? environmentUrl : `${environmentUrl}/`
-  const result = await msalClient.acquireTokenByClientCredential({ scopes: [`${baseUrl}.default`] })
-  if (!result) throw new Error('Failed to acquire access token')
-
-  return axios.create({
-    baseURL: `${environmentUrl.replace(/\/$/, '')}/api/data/v9.2`,
-    timeout: 10000,
-    headers: {
-      Authorization: `Bearer ${result.accessToken}`,
-      'OData-MaxVersion': '4.0',
-      'OData-Version': '4.0',
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-  })
-}
-
 optionSetsRouter.get('/status', async (req: Request, res: Response) => {
   const { environmentUrl } = req.query
   if (!environmentUrl || typeof environmentUrl !== 'string') {
     res.status(400).json({ error: 'environmentUrl query param is required' })
     return
+  }
+  try { validateEnvironmentUrl(environmentUrl) } catch (e) {
+    res.status(400).json({ error: (e as Error).message }); return
   }
   const config = loadClientConfig(environmentUrl)
   if (!config) {
@@ -75,9 +53,12 @@ optionSetsRouter.get('/status', async (req: Request, res: Response) => {
 
 optionSetsRouter.post('/restore', async (req: Request, res: Response) => {
   const { environmentUrl } = req.body
-  if (!environmentUrl) {
+  if (!environmentUrl || typeof environmentUrl !== 'string') {
     res.status(400).json({ error: 'environmentUrl is required' })
     return
+  }
+  try { validateEnvironmentUrl(environmentUrl) } catch (e) {
+    res.status(400).json({ error: (e as Error).message }); return
   }
   const config = loadClientConfig(environmentUrl)
   if (!config) {
@@ -105,6 +86,9 @@ optionSetsRouter.get('/doc-vs-dev', async (req: Request, res: Response) => {
     res.status(400).json({ error: 'environmentUrl query param is required' })
     return
   }
+  try { validateEnvironmentUrl(environmentUrl) } catch (e) {
+    res.status(400).json({ error: (e as Error).message }); return
+  }
   const config = loadClientConfig(environmentUrl)
   if (!config) {
     res.status(404).json({ error: 'No client config found for this environment' })
@@ -125,9 +109,12 @@ optionSetsRouter.get('/doc-vs-dev', async (req: Request, res: Response) => {
 
 optionSetsRouter.post('/compare', async (req: Request, res: Response) => {
   const { sourceUrl, targetUrl } = req.body
-  if (!sourceUrl || !targetUrl) {
+  if (!sourceUrl || !targetUrl || typeof sourceUrl !== 'string' || typeof targetUrl !== 'string') {
     res.status(400).json({ error: 'sourceUrl and targetUrl are required' })
     return
+  }
+  try { validateEnvironmentUrl(sourceUrl); validateEnvironmentUrl(targetUrl) } catch (e) {
+    res.status(400).json({ error: (e as Error).message }); return
   }
   
   const sourceConfig = loadClientConfig(sourceUrl)
@@ -197,9 +184,12 @@ optionSetsRouter.post('/compare', async (req: Request, res: Response) => {
 
 optionSetsRouter.post('/paste-compare', async (req: Request, res: Response) => {
   const { pastedText, devUrl } = req.body
-  if (!pastedText || !devUrl) {
+  if (!pastedText || !devUrl || typeof devUrl !== 'string') {
     res.status(400).json({ error: 'pastedText and devUrl are required' })
     return
+  }
+  try { validateEnvironmentUrl(devUrl) } catch (e) {
+    res.status(400).json({ error: (e as Error).message }); return
   }
 
   const devConfig = loadClientConfig(devUrl)

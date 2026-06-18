@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ComparisonReport } from '../types'
 import ComparisonReportView from '../components/ComparisonReport'
 import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
+import { apiFetch } from '../api'
 
 type RunState = 'idle' | 'running' | 'done' | 'error'
 
@@ -35,7 +36,7 @@ export default function ComparisonPage() {
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
-      const resp = await fetch(`${apiUrl}/api/comparison/run`, {
+      const resp = await apiFetch(`${apiUrl}/api/comparison/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceUrl: sourceUrl.trim(), targetUrl: targetUrl.trim() }),
