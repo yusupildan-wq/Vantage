@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
 import { apiFetch } from '../api'
+import ConfirmActionDialog from '../components/ConfirmActionDialog'
 
 type FlowCompareStatus = 'match' | 'drift' | 'source_only' | 'target_only'
 type CompareFilter = 'all' | 'drift' | 'source_only' | 'target_only' | 'match'
@@ -729,7 +731,7 @@ function MiniBlastMap({ connRef }: { connRef: ConnectionRefHealth }) {
 
 // ─── Connection ref expandable row ───────────────────────────────────────────
 
-type FixState = 'idle' | 'confirming' | 'running' | 'success' | 'error'
+type FixState = 'idle' | 'running' | 'success' | 'error'
 
 function ConnRefRow({ connRef, environmentUrl }: {
   connRef: ConnectionRefHealth
@@ -739,6 +741,7 @@ function ConnRefRow({ connRef, environmentUrl }: {
   const [expanded, setExpanded]   = useState(false)
   const [fixState, setFixState]   = useState<FixState>('idle')
   const [fixMessage, setFixMessage] = useState('')
+  const [confirmFixOpen, setConfirmFixOpen] = useState(false)
 
   const isDataverse = ref.connectorId.includes('commondataservice')
   const canAutoFix  = ref.status === 'broken' && isDataverse
@@ -751,9 +754,16 @@ function ConnRefRow({ connRef, environmentUrl }: {
       const resp = await apiFetch(`${API_URL}/api/connectionrefs/fix`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ environmentUrl, connectionRefId: ref.id }),
+        body: JSON.stringify({
+          environmentUrl,
+          connectionRefId: ref.id,
+          connectionRefName: ref.logicalName,
+          connectorType: ref.connectorType,
+          safetyAcknowledged: true,
+        }),
       })
       const json = await resp.json()
+      setConfirmFixOpen(false)
       if (json.success) { setFixState('success'); setFixMessage(json.message) }
       else               { setFixState('error');   setFixMessage(json.message ?? 'Fix failed') }
     } catch {
@@ -804,7 +814,7 @@ function ConnRefRow({ connRef, environmentUrl }: {
                 Open in Power Apps
               </a>
               {canAutoFix && fixState === 'idle' && (
-                <button onClick={() => { setFixState('confirming'); setExpanded(true) }}
+                <button onClick={() => { setConfirmFixOpen(true); setExpanded(true) }}
                   className="text-xs px-2.5 py-1 rounded-lg font-medium transition-all"
                   style={{ color: '#a78bfa', backgroundColor: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.2)', whiteSpace: 'nowrap' }}>
                   Auto-fix
@@ -824,7 +834,7 @@ function ConnRefRow({ connRef, environmentUrl }: {
             <div className="space-y-3">
 
               {/* Confirmation panel */}
-              {fixState === 'confirming' && (
+              {false && (
                 <div className="rounded-lg px-4 py-4"
                   style={{ backgroundColor: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.25)' }}>
                   <p className="text-xs font-semibold mb-1" style={{ color: '#a78bfa' }}>Auto-fix — Dataverse connection</p>
@@ -859,7 +869,12 @@ function ConnRefRow({ connRef, environmentUrl }: {
               {fixState === 'success' && (
                 <div className="rounded-lg px-4 py-3 text-xs"
                   style={{ backgroundColor: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', color: '#4ade80' }}>
-                  {fixMessage}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span>{fixMessage}</span>
+                    <Link to="/audit-log" className="font-semibold transition-opacity hover:opacity-80" style={{ color: '#4ade80' }}>
+                      View Audit Log
+                    </Link>
+                  </div>
                 </div>
               )}
               {fixState === 'error' && (
@@ -911,6 +926,24 @@ function ConnRefRow({ connRef, environmentUrl }: {
           </td>
         </tr>
       )}
+      <ConfirmActionDialog
+        open={confirmFixOpen}
+        title="Auto-Fix Connection Reference"
+        tone="warning"
+        confirmLabel="Run Auto-Fix"
+        isWorking={fixState === 'running'}
+        body="Vantage will find a healthy Dataverse connection reference with the same connector type and copy its connection onto this broken reference."
+        checkLabel="I understand this will update a Dataverse connection reference to share another reference's credentials."
+        details={[
+          { label: 'Environment', value: environmentUrl },
+          { label: 'Reference', value: ref.logicalName },
+          { label: 'Connector', value: ref.connectorType },
+          { label: 'Affected Flows', value: `${ref.affectedFlows.length}` },
+          { label: 'Donor', value: 'Selected automatically from healthy matching references' },
+        ]}
+        onCancel={() => setConfirmFixOpen(false)}
+        onConfirm={runFix}
+      />
     </>
   )
 }

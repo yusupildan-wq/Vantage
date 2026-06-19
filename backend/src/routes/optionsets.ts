@@ -6,6 +6,7 @@ import { ClientConfig } from '../types'
 import { makeDataverseClient, validateEnvironmentUrl } from '../auth'
 import { checkOptionSets, restoreOptionSets } from '../optionsets'
 import { parsePastedContent, comparePastedWithDev } from '../pastecompare'
+import { recordAuditEvent } from '../audit'
 
 export const optionSetsRouter = Router()
 
@@ -52,9 +53,13 @@ optionSetsRouter.get('/status', async (req: Request, res: Response) => {
 })
 
 optionSetsRouter.post('/restore', async (req: Request, res: Response) => {
-  const { environmentUrl } = req.body
+  const { environmentUrl, safetyAcknowledged } = req.body
   if (!environmentUrl || typeof environmentUrl !== 'string') {
     res.status(400).json({ error: 'environmentUrl is required' })
+    return
+  }
+  if (safetyAcknowledged !== true) {
+    res.status(400).json({ error: 'Safety acknowledgement is required before restoring option set values.' })
     return
   }
   try { validateEnvironmentUrl(environmentUrl) } catch (e) {
@@ -71,11 +76,32 @@ optionSetsRouter.post('/restore', async (req: Request, res: Response) => {
       ? await makeDataverseClient(config.sourceOfTruthUrl)
       : client
     const result = await restoreOptionSets(client, config, sourceClient)
+    recordAuditEvent({
+      action: 'option_set_restore',
+      targetSystem: 'Dataverse',
+      target: environmentUrl,
+      status: 'success',
+      summary: `Restored ${result.restored} option set value(s) for ${config.name}.`,
+      metadata: {
+        clientName: config.name,
+        sourceOfTruth: config.sourceOfTruthUrl ?? environmentUrl,
+        restored: result.restored,
+        failed: result.failed,
+      },
+    })
     res.json({ clientName: config.name, ...result })
   } catch (err) {
     const detail = axios.isAxiosError(err)
       ? (err.response?.data?.error?.message ?? err.message)
       : (err instanceof Error ? err.message : 'Failed')
+    recordAuditEvent({
+      action: 'option_set_restore',
+      targetSystem: 'Dataverse',
+      target: environmentUrl,
+      status: 'failure',
+      summary: detail,
+      metadata: { clientName: config.name },
+    })
     res.status(500).json({ error: detail })
   }
 })

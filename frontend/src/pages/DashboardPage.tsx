@@ -256,6 +256,38 @@ export default function DashboardPage() {
             }
             onClick={() => navigate('/optimizer')}
           />
+
+          <FeatureCard
+            index="08"
+            title="Diagnostics"
+            description="Confirm Vantage is configured and ready before you run operational checks."
+            detail="Checks backend health, required secrets, DevOps configuration, client config files, CORS mode, optimizer branch, and optional environment URL validation."
+            accentColor="#2dd4bf"
+            accentGlow="rgba(45,212,191,0.08)"
+            topLine="linear-gradient(90deg, transparent, rgba(45,212,191,0.55), transparent)"
+            icon={
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" style={{ color: '#2dd4bf' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 12h9.75M10.5 18h9.75M3.75 6h.008v.008H3.75V6zm0 6h.008v.008H3.75V12zm0 6h.008v.008H3.75V18z" />
+              </svg>
+            }
+            onClick={() => navigate('/diagnostics')}
+          />
+
+          <FeatureCard
+            index="09"
+            title="Audit Log"
+            description="Review confirmed external actions across Dataverse and Azure DevOps."
+            detail="Records option set restores, pipeline cancel/retry requests, and optimizer PR creation with timestamps, targets, status, and secret-safe metadata."
+            accentColor="var(--accent-bright)"
+            accentGlow="rgba(129,140,248,0.08)"
+            topLine="linear-gradient(90deg, transparent, rgba(129,140,248,0.55), transparent)"
+            icon={
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" style={{ color: 'var(--accent-bright)' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2.25 5H6.75A2.25 2.25 0 014.5 18.75V5.25A2.25 2.25 0 016.75 3h6.879c.597 0 1.169.237 1.591.659l2.121 2.121c.422.422.659.994.659 1.591v11.379A2.25 2.25 0 0117.25 21z" />
+              </svg>
+            }
+            onClick={() => navigate('/audit-log')}
+          />
         </div>
       </main>
     </>

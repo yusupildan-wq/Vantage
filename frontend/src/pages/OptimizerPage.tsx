@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { API_URL, apiFetch } from '../api'
 import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
+import ConfirmActionDialog from '../components/ConfirmActionDialog'
 
 interface PipelineDefinition {
   id: number
@@ -118,6 +120,7 @@ export default function OptimizerPage() {
   const [applying, setApplying] = useState(false)
   const [pr, setPr] = useState<PRResult | null>(null)
   const [applyError, setApplyError] = useState<string | null>(null)
+  const [confirmSingleOpen, setConfirmSingleOpen] = useState(false)
   // Repo-wide mode
   const [analyzingRepo, setAnalyzingRepo] = useState(false)
   const [repoAnalysis, setRepoAnalysis] = useState<RepoAnalysisResult | null>(null)
@@ -125,6 +128,7 @@ export default function OptimizerPage() {
   const [applyingRepo, setApplyingRepo] = useState(false)
   const [repoPRs, setRepoPRs] = useState<PRResult[] | null>(null)
   const [repoApplyError, setRepoApplyError] = useState<string | null>(null)
+  const [confirmRepoOpen, setConfirmRepoOpen] = useState(false)
 
   async function loadDefinitions(e: React.FormEvent) {
     e.preventDefault()
@@ -169,10 +173,6 @@ export default function OptimizerPage() {
 
   async function applyOptimizations() {
     if (!analysis) return
-    const confirmed = window.confirm(
-      `Create a draft PR for ${analysis.pipelineName}? A new branch will be created and a PR opened to ${analysis.defaultBranch}. Main will not be modified.`
-    )
-    if (!confirmed) return
     setApplying(true)
     setApplyError(null)
     setPr(null)
@@ -195,6 +195,7 @@ export default function OptimizerPage() {
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error ?? 'Failed to create PR')
       setPr(data)
+      setConfirmSingleOpen(false)
     } catch (err) {
       setApplyError(err instanceof Error ? err.message : 'Failed to create PR')
     } finally {
@@ -223,10 +224,6 @@ export default function OptimizerPage() {
     if (!repoAnalysis) return
     const changedGroups = repoAnalysis.groups.filter(g => g.fileChanges.some(f => f.changed))
     if (changedGroups.length === 0) return
-    const confirmed = window.confirm(
-      `Create ${changedGroups.length} draft PR(s) — one per repository — with all optimizations applied? Main will not be modified.`
-    )
-    if (!confirmed) return
     setApplyingRepo(true)
     setRepoApplyError(null)
     setRepoPRs(null)
@@ -244,6 +241,7 @@ export default function OptimizerPage() {
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error ?? 'Failed to create PRs')
       setRepoPRs(data.pullRequests)
+      setConfirmRepoOpen(false)
     } catch (err) {
       setRepoApplyError(err instanceof Error ? err.message : 'Failed to create PRs')
     } finally {
@@ -257,6 +255,8 @@ export default function OptimizerPage() {
   const selectedDef = definitions?.find(d => d.id === selectedId) ?? null
   const changedFiles = analysis?.fileChanges?.filter(f => f.changed) ?? []
   const hasChanges = changedFiles.length > 0
+  const changedRepoGroups = repoAnalysis?.groups.filter(g => g.fileChanges.some(f => f.changed)) ?? []
+  const repoOptimizationCount = changedRepoGroups.reduce((total, group) => total + group.optimizations.length, 0)
 
   return (
     <>
@@ -653,7 +653,7 @@ export default function OptimizerPage() {
                     {repoApplyError && <p className="mt-1.5 text-xs" style={{ color: '#f87171' }}>{repoApplyError}</p>}
                   </div>
                   <button
-                    onClick={applyRepo}
+                    onClick={() => setConfirmRepoOpen(true)}
                     disabled={applyingRepo}
                     className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold transition-all disabled:opacity-30 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
                     style={{ backgroundColor: '#14532d', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', boxShadow: '0 0 20px rgba(74,222,128,0.08)' }}
@@ -680,6 +680,9 @@ export default function OptimizerPage() {
                   <p className="text-xs font-semibold tracking-[0.2em] uppercase mb-3" style={{ color: '#4ade80' }}>
                     {repoPRs.length} Draft PR{repoPRs.length !== 1 ? 's' : ''} Created
                   </p>
+                  <Link to="/audit-log" className="inline-flex text-xs font-semibold mb-3 transition-opacity hover:opacity-80" style={{ color: '#4ade80' }}>
+                    View Audit Log
+                  </Link>
                   <div className="space-y-2">
                     {repoPRs.map(pr => (
                       <div key={pr.branchName} className="flex items-center justify-between gap-4 rounded-lg px-4 py-3"
@@ -866,7 +869,7 @@ export default function OptimizerPage() {
                     )}
                   </div>
                   <button
-                    onClick={applyOptimizations}
+                    onClick={() => setConfirmSingleOpen(true)}
                     disabled={applying}
                     className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold transition-all disabled:opacity-30 disabled:cursor-not-allowed whitespace-nowrap"
                     style={{ backgroundColor: '#14532d', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', boxShadow: '0 0 20px rgba(74,222,128,0.08)' }}
@@ -898,6 +901,9 @@ export default function OptimizerPage() {
                     <p className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
                       {pr.branchName} → {analysis.defaultBranch}
                     </p>
+                    <Link to="/audit-log" className="inline-flex text-xs font-semibold mt-2 transition-opacity hover:opacity-80" style={{ color: '#4ade80' }}>
+                      View Audit Log
+                    </Link>
                   </div>
                   <a
                     href={pr.prUrl}
@@ -918,6 +924,50 @@ export default function OptimizerPage() {
             )}
           </>
         )}
+
+        <ConfirmActionDialog
+          open={confirmSingleOpen}
+          title="Create Optimizer Draft PR"
+          tone="info"
+          confirmLabel="Create Draft PR"
+          isWorking={applying}
+          body="Vantage will create a new optimizer branch and open a draft PR. The target branch is not modified directly."
+          checkLabel="I understand this will create a branch and draft PR in Azure DevOps."
+          details={analysis ? [
+            { label: 'Project', value: projectUrl.trim() },
+            { label: 'Repository', value: analysis.repositoryName },
+            { label: 'Pipeline', value: analysis.pipelineName },
+            { label: 'Target', value: analysis.defaultBranch },
+            { label: 'Files', value: `${changedFiles.length}` },
+            { label: 'Optimizations', value: `${analysis.optimizations.length}` },
+            { label: 'Savings', value: analysis.estimatedSavingMinutes > 0 ? `${analysis.estimatedSavingMinutes} min per run` : 'n/a' },
+            { label: 'PR Mode', value: 'Draft only' },
+          ] : []}
+          onCancel={() => setConfirmSingleOpen(false)}
+          onConfirm={applyOptimizations}
+        />
+
+        <ConfirmActionDialog
+          open={confirmRepoOpen}
+          title="Create Repository Optimizer PRs"
+          tone="info"
+          confirmLabel="Create Draft PRs"
+          isWorking={applyingRepo}
+          body="Vantage will create one optimizer branch and draft PR per changed repository. Target branches are not modified directly."
+          checkLabel="I understand this will create branches and draft PRs in Azure DevOps."
+          details={repoAnalysis ? [
+            { label: 'Project', value: projectUrl.trim() },
+            { label: 'Repositories', value: `${changedRepoGroups.length}` },
+            { label: 'Pipelines', value: `${repoAnalysis.totalPipelines}` },
+            { label: 'Files', value: `${repoAnalysis.totalFilesChanged}` },
+            { label: 'Optimizations', value: `${repoOptimizationCount}` },
+            { label: 'Savings', value: repoAnalysis.totalEstimatedSavingMinutes > 0 ? `${repoAnalysis.totalEstimatedSavingMinutes} min per run` : 'n/a' },
+            { label: 'Target', value: [...new Set(changedRepoGroups.map(group => group.defaultBranch))].join(', ') || 'n/a' },
+            { label: 'PR Mode', value: 'Draft only' },
+          ] : []}
+          onCancel={() => setConfirmRepoOpen(false)}
+          onConfirm={applyRepo}
+        />
       </main>
     </>
   )

@@ -10,6 +10,8 @@ import ComparisonPage from './pages/ComparisonPage'
 import FlowsPage from './pages/FlowsPage'
 import PipelinesPage from './pages/PipelinesPage'
 import OptimizerPage from './pages/OptimizerPage'
+import DiagnosticsPage from './pages/DiagnosticsPage'
+import AuditLogPage from './pages/AuditLogPage'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
@@ -56,6 +58,8 @@ export default function App() {
         <Route path="/flows"       element={<FlowsPage />} />
         <Route path="/pipelines"   element={<PipelinesPage />} />
         <Route path="/optimizer"   element={<OptimizerPage />} />
+        <Route path="/diagnostics" element={<DiagnosticsPage />} />
+        <Route path="/audit-log"   element={<AuditLogPage />} />
       </Routes>
       <footer
         className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-between"

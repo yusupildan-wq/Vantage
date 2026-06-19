@@ -8,6 +8,8 @@ const PAGE_LABELS: Record<string, string> = {
   '/flows':       'Cloud Flow Monitor',
   '/pipelines':   'Pipeline Health Dashboard',
   '/optimizer':   'Pipeline Optimizer',
+  '/diagnostics': 'Diagnostics',
+  '/audit-log':   'Audit Log',
 }
 
 export default function Header() {

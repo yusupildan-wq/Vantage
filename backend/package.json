@@ -4,6 +4,7 @@
   "type": "commonjs",
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
+    "test": "ts-node src/__tests__/pasteparse.test.ts",
     "build": "tsc",
     "start": "node dist/index.js"
   },
