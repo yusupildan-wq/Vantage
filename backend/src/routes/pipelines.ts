@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import axios from 'axios'
 import { getPipelineHealth, getRunError, cancelPipelineRun, retryFailedJobs, validateDevOpsUrl } from '../pipelines'
+import { recordAuditEvent } from '../audit'
 
 export const pipelinesRouter = Router()
 
@@ -61,12 +62,15 @@ pipelinesRouter.get('/run-error', async (req: Request, res: Response) => {
 })
 
 function requireProjectAndBuild(req: Request, res: Response): { projectUrl: string; buildId: number; pat: string } | null {
-  const { projectUrl, buildId } = req.body
+  const { projectUrl, buildId, safetyAcknowledged } = req.body
   if (!projectUrl || typeof projectUrl !== 'string') {
     res.status(400).json({ error: 'projectUrl is required' }); return null
   }
   if (!buildId || isNaN(parseInt(buildId, 10))) {
     res.status(400).json({ error: 'buildId is required' }); return null
+  }
+  if (safetyAcknowledged !== true) {
+    res.status(400).json({ error: 'Safety acknowledgement is required before changing pipeline runs.' }); return null
   }
   try { validateDevOpsUrl(projectUrl) } catch (e) {
     res.status(400).json({ error: (e as Error).message }); return null
@@ -83,11 +87,27 @@ pipelinesRouter.post('/cancel', async (req: Request, res: Response) => {
   if (!args) return
   try {
     await cancelPipelineRun(args.projectUrl, args.pat, args.buildId)
+    recordAuditEvent({
+      action: 'pipeline_cancel',
+      targetSystem: 'Azure DevOps',
+      target: args.projectUrl,
+      status: 'success',
+      summary: `Cancellation requested for build ${args.buildId}.`,
+      metadata: { buildId: args.buildId },
+    })
     res.json({ success: true })
   } catch (err) {
     const detail = axios.isAxiosError(err)
       ? (err.response?.data?.message ?? err.response?.data?.typeKey ?? err.message)
       : (err instanceof Error ? err.message : 'Failed')
+    recordAuditEvent({
+      action: 'pipeline_cancel',
+      targetSystem: 'Azure DevOps',
+      target: args.projectUrl,
+      status: 'failure',
+      summary: detail,
+      metadata: { buildId: args.buildId },
+    })
     res.status(500).json({ error: detail })
   }
 })
@@ -97,11 +117,35 @@ pipelinesRouter.post('/retry', async (req: Request, res: Response) => {
   if (!args) return
   try {
     const result = await retryFailedJobs(args.projectUrl, args.pat, args.buildId)
+    recordAuditEvent({
+      action: 'pipeline_retry',
+      targetSystem: 'Azure DevOps',
+      target: args.projectUrl,
+      status: 'success',
+      summary: result.retriedStages?.length
+        ? `Retry requested for ${result.retriedStages.length} failed stage(s) in build ${args.buildId}.`
+        : result.newBuildId
+          ? `Queued replacement build ${result.newBuildId} for build ${args.buildId}.`
+          : `Retry requested for build ${args.buildId}.`,
+      metadata: {
+        buildId: args.buildId,
+        newBuildId: result.newBuildId ?? null,
+        retriedStages: result.retriedStages ?? [],
+      },
+    })
     res.json(result)
   } catch (err) {
     const detail = axios.isAxiosError(err)
       ? (err.response?.data?.message ?? err.response?.data?.typeKey ?? err.message)
       : (err instanceof Error ? err.message : 'Failed')
+    recordAuditEvent({
+      action: 'pipeline_retry',
+      targetSystem: 'Azure DevOps',
+      target: args.projectUrl,
+      status: 'failure',
+      summary: detail,
+      metadata: { buildId: args.buildId },
+    })
     res.status(500).json({ error: detail })
   }
 })

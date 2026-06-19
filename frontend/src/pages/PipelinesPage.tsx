@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
 import { apiFetch, API_URL } from '../api'
+import ConfirmActionDialog from '../components/ConfirmActionDialog'
 
 type RunStatus = 'succeeded' | 'partiallySucceeded' | 'failed' | 'running' | 'pending' | 'cancelled' | 'unknown'
 type StatusFilter = 'all' | RunStatus
 type TimeRange = 7 | 30 | 90 | 0
+type PipelineAction = 'cancel' | 'retry'
 
 interface PipelineRun {
   id: number
@@ -230,6 +233,7 @@ export default function PipelinesPage() {
   const [runErrors, setRunErrors] = useState<Map<number, RunErrorState>>(new Map())
   const [actionInProgress, setActionInProgress] = useState<Map<number, 'cancelling' | 'retrying'>>(new Map())
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [pendingAction, setPendingAction] = useState<{ action: PipelineAction; run: PipelineRun } | null>(null)
 
   const RUNS_PAGE      = 25
   const PIPELINES_PAGE = 5
@@ -303,11 +307,12 @@ export default function PipelinesPage() {
       const resp = await apiFetch(`${API_URL}/api/pipelines/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectUrl: projectUrl.trim(), buildId }),
+        body: JSON.stringify({ projectUrl: projectUrl.trim(), buildId, safetyAcknowledged: true }),
       })
       const json = await resp.json()
       if (!resp.ok) throw new Error(json.error ?? 'Cancel failed')
       setActionMessage({ type: 'success', text: `Run #${buildId} is being cancelled.` })
+      setPendingAction(null)
       setTimeout(() => fetchData(true), 2000)
     } catch (err) {
       setActionMessage({ type: 'error', text: err instanceof Error ? err.message : 'Cancel failed' })
@@ -323,7 +328,7 @@ export default function PipelinesPage() {
       const resp = await apiFetch(`${API_URL}/api/pipelines/retry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectUrl: projectUrl.trim(), buildId }),
+        body: JSON.stringify({ projectUrl: projectUrl.trim(), buildId, safetyAcknowledged: true }),
       })
       const json = await resp.json()
       if (!resp.ok) throw new Error(json.error ?? 'Retry failed')
@@ -333,6 +338,7 @@ export default function PipelinesPage() {
         ? `New run queued (#${json.newBuildId})`
         : 'Retry queued'
       setActionMessage({ type: 'success', text: msg })
+      setPendingAction(null)
       setTimeout(() => fetchData(true), 3000)
     } catch (err) {
       setActionMessage({ type: 'error', text: err instanceof Error ? err.message : 'Retry failed' })
@@ -381,6 +387,15 @@ export default function PipelinesPage() {
     color: 'var(--text-primary)',
     caretColor: '#2dd4bf',
   }
+
+  const pendingActionDetails = pendingAction
+    ? [
+        { label: 'Project', value: data ? `${data.organization} / ${data.project}` : projectUrl.trim() },
+        { label: 'Pipeline', value: pendingAction.run.pipelineName },
+        { label: 'Run', value: `#${pendingAction.run.buildNumber} (${pendingAction.run.id})` },
+        { label: 'Branch', value: pendingAction.run.branch || 'n/a' },
+      ]
+    : []
 
   return (
     <>
@@ -515,7 +530,14 @@ export default function PipelinesPage() {
                   <p className="text-xs font-medium" style={{ color: actionMessage.type === 'success' ? '#2dd4bf' : '#f87171' }}>
                     {actionMessage.text}
                   </p>
-                  <button onClick={() => setActionMessage(null)} className="text-xs opacity-50 hover:opacity-100" style={{ color: 'var(--text-muted)' }}>✕</button>
+                  <div className="flex items-center gap-3">
+                    {actionMessage.type === 'success' && (
+                      <Link to="/audit-log" className="text-xs font-semibold transition-opacity hover:opacity-80" style={{ color: '#2dd4bf' }}>
+                        View Audit Log
+                      </Link>
+                    )}
+                    <button onClick={() => setActionMessage(null)} className="text-xs opacity-50 hover:opacity-100" style={{ color: 'var(--text-muted)' }}>✕</button>
+                  </div>
                 </div>
               )}
 
@@ -633,7 +655,7 @@ export default function PipelinesPage() {
                               <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
                                 {run.status === 'running' && (
                                   <button
-                                    onClick={() => cancelRun(run.id)}
+                                    onClick={() => setPendingAction({ action: 'cancel', run })}
                                     disabled={!!actionInProgress.get(run.id)}
                                     title="Cancel this run"
                                     className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md font-medium transition-all disabled:opacity-40"
@@ -646,7 +668,7 @@ export default function PipelinesPage() {
                                 )}
                                 {(run.status === 'failed' || run.status === 'partiallySucceeded') && (
                                   <button
-                                    onClick={() => retryRun(run.id)}
+                                    onClick={() => setPendingAction({ action: 'retry', run })}
                                     disabled={!!actionInProgress.get(run.id)}
                                     title="Retry failed jobs"
                                     className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md font-medium transition-all disabled:opacity-40"
@@ -982,6 +1004,27 @@ export default function PipelinesPage() {
 
           </>
         )}
+
+        <ConfirmActionDialog
+          open={pendingAction !== null}
+          title={pendingAction?.action === 'cancel' ? 'Cancel Pipeline Run' : 'Retry Pipeline Run'}
+          tone={pendingAction?.action === 'cancel' ? 'danger' : 'info'}
+          confirmLabel={pendingAction?.action === 'cancel' ? 'Cancel Run' : 'Retry Run'}
+          isWorking={pendingAction ? !!actionInProgress.get(pendingAction.run.id) : false}
+          body={pendingAction?.action === 'cancel'
+            ? 'This will request cancellation for the running Azure DevOps build.'
+            : 'This will retry failed jobs or queue a replacement build in Azure DevOps.'}
+          checkLabel={pendingAction?.action === 'cancel'
+            ? 'I understand this will stop a running Azure DevOps build.'
+            : 'I understand this will start work in Azure DevOps.'}
+          details={pendingActionDetails}
+          onCancel={() => setPendingAction(null)}
+          onConfirm={() => {
+            if (!pendingAction) return
+            if (pendingAction.action === 'cancel') cancelRun(pendingAction.run.id)
+            else retryRun(pendingAction.run.id)
+          }}
+        />
       </main>
     </>
   )

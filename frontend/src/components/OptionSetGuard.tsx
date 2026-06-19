@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { OptionSetCheckResult } from '../types'
 import { apiFetch } from '../api'
+import ConfirmActionDialog from './ConfirmActionDialog'
 
 interface Props {
   environmentUrl: string
@@ -48,6 +50,7 @@ export default function OptionSetGuard({ environmentUrl, columnLabels, apiEndpoi
   const [error, setError]                   = useState<string | null>(null)
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null)
   const [showMismatchOnly, setShowMismatchOnly] = useState(false)
+  const [confirmRestoreOpen, setConfirmRestoreOpen] = useState(false)
 
   const labels = columnLabels ?? (sourceOfTruth
     ? { expected: 'Dev', current: 'Current' }
@@ -96,7 +99,7 @@ export default function OptionSetGuard({ environmentUrl, columnLabels, apiEndpoi
       const resp = await apiFetch(`${apiUrl}/api/optionsets/restore`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ environmentUrl }),
+        body: JSON.stringify({ environmentUrl, safetyAcknowledged: true }),
       })
       if (!resp.ok) {
         const data = await resp.json()
@@ -105,6 +108,7 @@ export default function OptionSetGuard({ environmentUrl, columnLabels, apiEndpoi
       const data = await resp.json()
       setResults(data.details)
       setRestoreMessage(`Restored ${data.restored} value(s).${data.failed > 0 ? ` ${data.failed} failed.` : ''}`)
+      setConfirmRestoreOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to restore option sets')
     } finally {
@@ -113,6 +117,11 @@ export default function OptionSetGuard({ environmentUrl, columnLabels, apiEndpoi
   }
 
   const hasMismatch    = results?.some(r => r.status === 'mismatch')
+  const mismatchedOptionSets = results?.filter(r => r.status === 'mismatch') ?? []
+  const mismatchValueCount = mismatchedOptionSets.reduce(
+    (total, result) => total + result.values.filter(value => !value.match).length,
+    0
+  )
   const visibleResults = showMismatchOnly
     ? results?.filter(r => r.status === 'mismatch' || r.status === 'error')
     : results
@@ -157,7 +166,7 @@ export default function OptionSetGuard({ environmentUrl, columnLabels, apiEndpoi
           )}
           {!readOnly && results && hasMismatch && (
             <button
-              onClick={handleRestore}
+              onClick={() => setConfirmRestoreOpen(true)}
               disabled={isRestoring}
               className="px-4 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
               style={{
@@ -194,10 +203,13 @@ export default function OptionSetGuard({ environmentUrl, columnLabels, apiEndpoi
 
       {restoreMessage && (
         <div
-          className="mx-6 mt-5 rounded-lg px-4 py-3 text-xs"
+          className="mx-6 mt-5 rounded-lg px-4 py-3 text-xs flex flex-wrap items-center justify-between gap-3"
           style={{ backgroundColor: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.15)', color: '#4ade80' }}
         >
-          {restoreMessage}
+          <span>{restoreMessage}</span>
+          <Link to="/audit-log" className="font-semibold transition-opacity hover:opacity-80" style={{ color: '#4ade80' }}>
+            View Audit Log
+          </Link>
         </div>
       )}
 
@@ -291,6 +303,24 @@ export default function OptionSetGuard({ environmentUrl, columnLabels, apiEndpoi
           ))}
         </div>
       )}
+
+      <ConfirmActionDialog
+        open={confirmRestoreOpen}
+        title="Restore Option Set Values"
+        tone="warning"
+        confirmLabel="Restore Values"
+        isWorking={isRestoring}
+        body="This will write the source-of-truth labels back into the selected Dataverse environment."
+        checkLabel="I understand this will update option set labels in Dataverse."
+        details={[
+          { label: 'Environment', value: environmentUrl },
+          { label: 'Source', value: sourceOfTruth ?? environmentUrl },
+          { label: 'Option Sets', value: `${mismatchedOptionSets.length}` },
+          { label: 'Values', value: `${mismatchValueCount}` },
+        ]}
+        onCancel={() => setConfirmRestoreOpen(false)}
+        onConfirm={handleRestore}
+      />
 
     </div>
   )

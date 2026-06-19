@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import axios from 'axios'
 import { listDefinitions, fetchAndAnalyze, createOptimizationPRSafely, analyzeRepository, createRepoOptimizationPRs } from '../optimizer'
+import { recordAuditEvent } from '../audit'
 
 export const optimizerRouter = Router()
 
@@ -67,8 +68,38 @@ optimizerRouter.post('/apply', async (req: Request, res: Response) => {
   if (!pat) return
   try {
     const result = await createOptimizationPRSafely(projectUrl, pat, repositoryId, yamlPath, optimizedYaml, pipelineName, defaultBranch, Boolean(dryRun), fileChanges)
+    recordAuditEvent({
+      action: 'optimizer_apply',
+      targetSystem: 'Azure DevOps',
+      target: projectUrl,
+      status: 'success',
+      summary: `Created draft optimizer PR ${result.prId} for ${pipelineName}.`,
+      metadata: {
+        pipelineName,
+        repositoryId,
+        yamlPath,
+        targetBranch: defaultBranch,
+        branchName: result.branchName,
+        prId: result.prId,
+        draft: result.draft ?? true,
+        fileCount: Array.isArray(fileChanges) ? fileChanges.length : 1,
+      },
+    })
     res.json(result)
-  } catch (err) { handleError(res, err) }
+  } catch (err) {
+    const detail = axios.isAxiosError(err)
+      ? (err.response?.data?.message ?? err.response?.data?.typeKey ?? err.message)
+      : (err instanceof Error ? err.message : 'Unknown error')
+    recordAuditEvent({
+      action: 'optimizer_apply',
+      targetSystem: 'Azure DevOps',
+      target: projectUrl,
+      status: 'failure',
+      summary: detail,
+      metadata: { pipelineName, repositoryId, yamlPath, targetBranch: defaultBranch },
+    })
+    res.status(500).json({ error: detail })
+  }
 })
 
 // GET /api/optimizer/analyze-repo?projectUrl=...
@@ -102,6 +133,36 @@ optimizerRouter.post('/apply-repo', async (req: Request, res: Response) => {
   if (!pat) return
   try {
     const results = await createRepoOptimizationPRs(projectUrl, pat, groups)
+    recordAuditEvent({
+      action: 'optimizer_apply_repo',
+      targetSystem: 'Azure DevOps',
+      target: projectUrl,
+      status: 'success',
+      summary: `Created ${results.length} repository optimizer draft PR(s).`,
+      metadata: {
+        repositories: groups.map((group: any) => group.repositoryName),
+        pullRequestIds: results.map(result => result.prId),
+        branches: results.map(result => result.branchName),
+        draftOnly: true,
+        fileCount: groups.reduce((sum: number, group: any) => sum + group.fileChanges.filter((file: any) => file.changed).length, 0),
+      },
+    })
     res.json({ pullRequests: results })
-  } catch (err) { handleError(res, err) }
+  } catch (err) {
+    const detail = axios.isAxiosError(err)
+      ? (err.response?.data?.message ?? err.response?.data?.typeKey ?? err.message)
+      : (err instanceof Error ? err.message : 'Unknown error')
+    recordAuditEvent({
+      action: 'optimizer_apply_repo',
+      targetSystem: 'Azure DevOps',
+      target: projectUrl,
+      status: 'failure',
+      summary: detail,
+      metadata: {
+        repositories: groups.map((group: any) => group.repositoryName),
+        draftOnly: true,
+      },
+    })
+    res.status(500).json({ error: detail })
+  }
 })

@@ -13,6 +13,8 @@ import { flowsRouter } from './routes/flows'
 import { connectionRefsRouter } from './routes/connectionrefs'
 import { pipelinesRouter } from './routes/pipelines'
 import { optimizerRouter } from './routes/optimizer'
+import { diagnosticsRouter } from './routes/diagnostics'
+import { auditRouter } from './routes/audit'
 
 const REQUIRED_ENV = ['AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'API_KEY']
 const missing = REQUIRED_ENV.filter(k => !process.env[k])
@@ -67,6 +69,8 @@ app.use('/api/flows', flowsRouter)
 app.use('/api/connectionrefs', connectionRefsRouter)
 app.use('/api/pipelines', pipelinesRouter)
 app.use('/api/optimizer', optimizerRouter)
+app.use('/api/diagnostics', diagnosticsRouter)
+app.use('/api/audit-log', auditRouter)
 
 app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`)

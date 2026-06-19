@@ -110,3 +110,42 @@ export interface ComparisonReport {
   totalSourceOnly: number
   totalTargetOnly: number
 }
+
+export type DiagnosticStatus = 'pass' | 'warn' | 'fail'
+
+export interface DiagnosticCheck {
+  id: string
+  label: string
+  category: 'Backend' | 'Security' | 'Dataverse' | 'Azure DevOps' | 'Configuration'
+  status: DiagnosticStatus
+  message: string
+  detail?: string
+}
+
+export interface DiagnosticsReport {
+  timestamp: string
+  overallStatus: DiagnosticStatus
+  passed: number
+  warnings: number
+  failures: number
+  checks: DiagnosticCheck[]
+}
+
+export type AuditAction =
+  | 'option_set_restore'
+  | 'connection_ref_auto_fix'
+  | 'pipeline_cancel'
+  | 'pipeline_retry'
+  | 'optimizer_apply'
+  | 'optimizer_apply_repo'
+
+export interface AuditEvent {
+  id: number
+  timestamp: string
+  action: AuditAction
+  targetSystem: 'Dataverse' | 'Azure DevOps'
+  target: string
+  status: 'success' | 'failure'
+  summary: string
+  metadata?: Record<string, string | number | boolean | null | string[] | number[]>
+}
