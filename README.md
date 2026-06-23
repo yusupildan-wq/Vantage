@@ -4,9 +4,45 @@ Power Platform and Azure DevOps engineering toolkit — audit active layers, mon
 
 ---
 
+## Download and run
+
+> No VS Code or developer tools required.
+
+### Step 1 — Download
+
+Go to the [**Releases**](../../releases/latest) page and download the latest `vantage-vX.X.X.zip`. Extract it anywhere on your machine.
+
+*(Alternatively: clone this repo or use the **Code → Download ZIP** button above.)*
+
+### Step 2 — Add your credentials
+
+Inside the extracted folder, open `backend/.env.example` in Notepad (or any text editor). Fill in your values:
+
+```
+AZURE_TENANT_ID=your-tenant-id
+AZURE_CLIENT_ID=your-client-id
+AZURE_CLIENT_SECRET=your-client-secret
+API_KEY=any-long-random-string-you-make-up
+AZURE_DEVOPS_PAT=your-ado-pat
+```
+
+Save the file as `backend/.env` (remove the `.example` part).
+
+### Step 3 — Start
+
+Double-click **`Start Vantage.bat`**.
+
+- If Docker Desktop is installed, it uses Docker — nothing else needed.
+- If Node.js is installed, it builds and starts with Node.js.
+- First run installs dependencies (~60 seconds). Every run after that starts in seconds.
+
+Vantage opens automatically in your browser at **http://localhost:3001**.
+
+---
+
 ## Before you start — what you need
 
-- **Node.js 18 or higher** — download at [nodejs.org](https://nodejs.org)
+- **[Docker Desktop](https://www.docker.com/products/docker-desktop)** *(recommended)* — or **[Node.js 18+](https://nodejs.org)** if you prefer
 - **Azure AD App Registration** credentials (Tenant ID, Client ID, Client Secret) — get these from whoever set up the app
 - The App Registration must be added as an **Application User** in each Dataverse environment you want to scan, with a role that allows read access (e.g. System Administrator)
 - **Azure DevOps PAT** — needed for Features 06 and 07. Generate at Azure DevOps → User Settings → Personal Access Tokens. Required scopes: Build (Read), Code (Read & Write)

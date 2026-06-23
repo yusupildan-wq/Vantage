@@ -3,6 +3,8 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
+import path from 'path'
+import fs from 'fs'
 import { scanRouter } from './routes/scan'
 import { historyRouter } from './routes/history'
 import { optionSetsRouter } from './routes/optionsets'
@@ -59,6 +61,10 @@ app.use('/api', (req, res, next) => {
 
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
+// Config endpoint — unauthenticated, used by the frontend to resolve the API key
+// when served from this same Express server (same-origin production mode).
+app.get('/config', (_req, res) => res.json({ apiKey: process.env.API_KEY }))
+
 app.use('/api/scan', scanRouter)
 app.use('/api/scans', historyRouter)
 app.use('/api/optionsets', optionSetsRouter)
@@ -71,6 +77,13 @@ app.use('/api/pipelines', pipelinesRouter)
 app.use('/api/optimizer', optimizerRouter)
 app.use('/api/diagnostics', diagnosticsRouter)
 app.use('/api/audit-log', auditRouter)
+
+// Serve pre-built frontend in production (single-server mode)
+const frontendDist = path.join(__dirname, '../../frontend/dist')
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist))
+  app.get('*', (_req, res) => res.sendFile(path.join(frontendDist, 'index.html')))
+}
 
 app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`)

@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build backend
+        working-directory: backend
+        run: npm ci && npm run build
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          printf 'VITE_API_URL=\nVITE_API_KEY=\n' > .env
+          npm run build
+
+      - name: Package release
+        run: |
+          mkdir -p release/backend release/frontend
+          # Pre-compiled backend
+          cp -r backend/dist       release/backend/dist
+          cp    backend/package.json    release/backend/package.json
+          cp    backend/package-lock.json release/backend/package-lock.json
+          cp    backend/.env.example release/backend/.env.example
+          # Pre-built frontend (embedded in the Express server)
+          cp -r frontend/dist      release/frontend/dist
+          # Launcher and Docker files
+          cp "Start Vantage.bat"   release/
+          cp docker-compose.yml    release/
+          cp Dockerfile            release/
+          cp .dockerignore         release/
+          cp README.md             release/
+          cd release
+          zip -r "../vantage-${{ github.ref_name }}.zip" .
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: vantage-${{ github.ref_name }}.zip
+          generate_release_notes: true
+          body: |
+            ## Download and run Vantage ${{ github.ref_name }}
+
+            ### Requirements
+            - [Docker Desktop](https://www.docker.com/products/docker-desktop) *(recommended — no other installs needed)*
+            - or [Node.js 18+](https://nodejs.org)
+
+            ### Steps
+            1. Download **`vantage-${{ github.ref_name }}.zip`** from the Assets section below
+            2. Extract the zip anywhere on your machine
+            3. Open `backend/.env.example`, fill in your credentials, save as `backend/.env`
+            4. Double-click **`Start Vantage.bat`**
+            5. Vantage opens automatically at http://localhost:3001
+
+            > On first run, `Start Vantage.bat` installs dependencies and compiles the code (~60 seconds). Subsequent starts take under 5 seconds.
