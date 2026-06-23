@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 
 const PAGE_LABELS: Record<string, string> = {
@@ -12,9 +13,15 @@ const PAGE_LABELS: Record<string, string> = {
   '/audit-log':   'Audit Log',
 }
 
+const SYSTEM_LINKS = [
+  { to: '/diagnostics', label: 'Diagnostics', description: 'Configuration checks' },
+  { to: '/audit-log', label: 'Audit Log', description: 'Confirmed action history' },
+]
+
 export default function Header() {
   const { pathname } = useLocation()
   const pageLabel = PAGE_LABELS[pathname]
+  const [systemOpen, setSystemOpen] = useState(false)
 
   return (
     <header style={{ backgroundColor: 'var(--bg-base)', borderBottom: '1px solid var(--border)' }}>
@@ -65,6 +72,56 @@ export default function Header() {
               Dashboard
             </Link>
           )}
+          <div className="relative">
+            <button
+              type="button"
+              className="flex h-8 items-center gap-2 rounded-md px-2.5 text-xs font-medium transition-colors hover:text-white"
+              style={{
+                color: systemOpen ? 'var(--text-primary)' : 'var(--text-secondary)',
+                backgroundColor: systemOpen ? 'var(--bg-elevated)' : 'transparent',
+                border: `1px solid ${systemOpen ? 'var(--border-mid)' : 'transparent'}`,
+              }}
+              aria-label="System tools"
+              aria-expanded={systemOpen}
+              onClick={() => setSystemOpen((open) => !open)}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.592c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.041.146.083.218.127.324.198.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.379.137.751.43.992l1.003.827c.424.35.534.955.26 1.431l-1.296 2.247a1.125 1.125 0 01-1.37.49l-1.217-.456c-.355-.133-.751-.074-1.075.124a6.47 6.47 0 01-.218.127c-.332.184-.582.496-.645.87l-.213 1.281c-.09.542-.56.94-1.11.94h-2.592c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.063-.374-.313-.686-.645-.87a6.52 6.52 0 01-.218-.127c-.324-.198-.72-.257-1.075-.124l-1.217.456a1.125 1.125 0 01-1.37-.49l-1.296-2.247a1.125 1.125 0 01.26-1.431l1.003-.827c.293-.241.438-.613.43-.992a7.723 7.723 0 010-.255c.008-.379-.137-.751-.43-.992l-1.003-.827a1.125 1.125 0 01-.26-1.431l1.296-2.247a1.125 1.125 0 011.37-.49l1.217.456c.355.133.751.074 1.075-.124.072-.044.144-.086.218-.127.332-.184.582-.496.645-.87l.213-1.281z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="hidden sm:inline">System</span>
+            </button>
+
+            {systemOpen && (
+              <div
+                className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg p-1.5 shadow-2xl"
+                style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-mid)' }}
+              >
+                {SYSTEM_LINKS.map((link) => {
+                  const active = pathname === link.to
+
+                  return (
+                    <Link
+                      key={link.to}
+                      to={link.to}
+                      className="block rounded-md px-3 py-2.5 transition-colors hover:bg-white/5"
+                      style={{
+                        backgroundColor: active ? 'rgba(129,140,248,0.08)' : 'transparent',
+                      }}
+                      onClick={() => setSystemOpen(false)}
+                    >
+                      <span className="block text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                        {link.label}
+                      </span>
+                      <span className="mt-0.5 block text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {link.description}
+                      </span>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </div>
           <span className="h-3.5 w-px hidden sm:block" style={{ backgroundColor: 'var(--border-mid)' }} />
           <span className="font-display text-xs font-medium hidden sm:block" style={{ color: 'var(--text-muted)' }}>v1.0</span>
         </div>

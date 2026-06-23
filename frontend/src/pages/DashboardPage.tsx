@@ -13,6 +13,18 @@ interface FeatureCardProps {
   onClick: () => void
 }
 
+interface SystemCardProps {
+  title: string
+  description: string
+  accentColor: string
+  accentBorder?: string
+  accentBackground?: string
+  accentIconBorder?: string
+  accentGlow?: string
+  icon: React.ReactNode
+  onClick: () => void
+}
+
 function FeatureCard({ index, title, description, detail, accentColor, accentGlow, topLine, icon, onClick }: FeatureCardProps) {
   const [hovered, setHovered] = useState(false)
 
@@ -92,6 +104,56 @@ function FeatureCard({ index, title, description, detail, accentColor, accentGlo
         </div>
       </div>
     </div>
+  )
+}
+
+function SystemCard({ title, description, accentColor, accentBorder, accentBackground, accentIconBorder, accentGlow, icon, onClick }: SystemCardProps) {
+  const [hovered, setHovered] = useState(false)
+  const activeBorder = accentBorder ?? `${accentColor}40`
+  const activeBackground = accentBackground ?? `${accentColor}18`
+  const activeIconBorder = accentIconBorder ?? `${accentColor}35`
+  const activeGlow = accentGlow ?? `${accentColor}18`
+
+  return (
+    <button
+      type="button"
+      className="group flex min-h-28 w-full items-center gap-5 rounded-xl p-5 text-left transition-all duration-300"
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        border: `1px solid ${hovered ? activeBorder : 'var(--border)'}`,
+        boxShadow: hovered ? `0 0 32px ${activeGlow}` : 'none',
+        transform: hovered ? 'translateY(-1px)' : 'translateY(0)',
+      }}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <span
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-all duration-300"
+        style={{
+          backgroundColor: hovered ? activeBackground : 'var(--bg-elevated)',
+          border: `1px solid ${hovered ? activeIconBorder : 'var(--border-mid)'}`,
+          color: accentColor,
+        }}
+      >
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-display text-lg font-semibold transition-colors duration-200" style={{ color: hovered ? '#ffffff' : 'var(--text-primary)' }}>
+          {title}
+        </span>
+        <span className="mt-1 block text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+          {description}
+        </span>
+      </span>
+      <svg
+        className="h-4 w-4 shrink-0 transition-transform duration-200"
+        style={{ color: accentColor, transform: hovered ? 'translateX(3px)' : 'translateX(0)' }}
+        fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+      </svg>
+    </button>
   )
 }
 
@@ -256,39 +318,46 @@ export default function DashboardPage() {
             }
             onClick={() => navigate('/optimizer')}
           />
-
-          <FeatureCard
-            index="08"
-            title="Diagnostics"
-            description="Confirm Vantage is configured and ready before you run operational checks."
-            detail="Checks backend health, required secrets, DevOps configuration, client config files, CORS mode, optimizer branch, and optional environment URL validation."
-            accentColor="#2dd4bf"
-            accentGlow="rgba(45,212,191,0.08)"
-            topLine="linear-gradient(90deg, transparent, rgba(45,212,191,0.55), transparent)"
-            icon={
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" style={{ color: '#2dd4bf' }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 12h9.75M10.5 18h9.75M3.75 6h.008v.008H3.75V6zm0 6h.008v.008H3.75V12zm0 6h.008v.008H3.75V18z" />
-              </svg>
-            }
-            onClick={() => navigate('/diagnostics')}
-          />
-
-          <FeatureCard
-            index="09"
-            title="Audit Log"
-            description="Review confirmed external actions across Dataverse and Azure DevOps."
-            detail="Records option set restores, pipeline cancel/retry requests, and optimizer PR creation with timestamps, targets, status, and secret-safe metadata."
-            accentColor="var(--accent-bright)"
-            accentGlow="rgba(129,140,248,0.08)"
-            topLine="linear-gradient(90deg, transparent, rgba(129,140,248,0.55), transparent)"
-            icon={
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" style={{ color: 'var(--accent-bright)' }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2.25 5H6.75A2.25 2.25 0 014.5 18.75V5.25A2.25 2.25 0 016.75 3h6.879c.597 0 1.169.237 1.591.659l2.121 2.121c.422.422.659.994.659 1.591v11.379A2.25 2.25 0 0117.25 21z" />
-              </svg>
-            }
-            onClick={() => navigate('/audit-log')}
-          />
         </div>
+
+        <section className="mt-14">
+          <p
+            className="text-xs font-semibold tracking-[0.25em] uppercase mb-5"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            System
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <SystemCard
+              title="Diagnostics"
+              description="Confirm backend health, required secrets, DevOps configuration, CORS mode, and optimizer setup."
+              accentColor="#2dd4bf"
+              icon={
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 12h9.75M10.5 18h9.75M3.75 6h.008v.008H3.75V6zm0 6h.008v.008H3.75V12zm0 6h.008v.008H3.75V18z" />
+                </svg>
+              }
+              onClick={() => navigate('/diagnostics')}
+            />
+
+            <SystemCard
+              title="Audit Log"
+              description="Review confirmed Dataverse and Azure DevOps actions with secret-safe operational metadata."
+              accentColor="var(--accent-bright)"
+              accentBorder="rgba(129,140,248,0.35)"
+              accentBackground="rgba(129,140,248,0.10)"
+              accentIconBorder="rgba(129,140,248,0.28)"
+              accentGlow="rgba(129,140,248,0.08)"
+              icon={
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2.25 5H6.75A2.25 2.25 0 014.5 18.75V5.25A2.25 2.25 0 016.75 3h6.879c.597 0 1.169.237 1.591.659l2.121 2.121c.422.422.659.994.659 1.591v11.379A2.25 2.25 0 0117.25 21z" />
+                </svg>
+              }
+              onClick={() => navigate('/audit-log')}
+            />
+          </div>
+        </section>
       </main>
     </>
   )
