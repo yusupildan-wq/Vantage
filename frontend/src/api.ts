@@ -6,7 +6,7 @@ async function resolveApiKey(): Promise<string> {
   if (_apiKey !== null) return _apiKey
   if (import.meta.env.VITE_API_KEY) {
     _apiKey = import.meta.env.VITE_API_KEY
-    return _apiKey
+    return _apiKey!
   }
   // Production: fetch key from backend (same-origin, served by Express)
   try {
@@ -16,7 +16,7 @@ async function resolveApiKey(): Promise<string> {
   } catch {
     _apiKey = ''
   }
-  return _apiKey
+  return _apiKey!
 }
 
 export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
