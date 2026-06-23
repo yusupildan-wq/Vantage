@@ -248,10 +248,14 @@ active-layer-auditor/
 **Dev mode with hot reload:**
 ```bash
 # Terminal 1 — backend
-cd backend && npm install && npm run dev
+cd backend
+npm install
+npm run dev
 
 # Terminal 2 — frontend
-cd frontend && npm install && npm run dev
+cd frontend
+npm install
+npm run dev
 ```
 Backend: http://localhost:3001 · Frontend: http://localhost:5173
 
@@ -259,9 +263,12 @@ The setup wizard works in dev mode and writes to `data/config.json`. You can als
 
 **Build the standalone exe:**
 ```bash
-cd frontend && npm run build       # output: frontend/dist/
-cd ../backend && npm run build     # output: backend/dist/
-npm run package                    # output: vantage.exe
+cd frontend
+npm run build          # output: frontend/dist/
+
+cd ../backend
+npm run build          # output: backend/dist/
+npm run package        # output: vantage.exe
 # copy frontend/dist → public/ next to vantage.exe before running
 ```
 
@@ -272,5 +279,6 @@ docker compose up --build          # serves everything on http://localhost:3001
 
 **Publish a release** — GitHub Actions builds the exe and publishes automatically:
 ```bash
-git tag v1.0.0 && git push origin v1.0.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
