@@ -5,6 +5,7 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import path from 'path'
 import fs from 'fs'
+import { loadSavedConfig, applyConfig, isConfigured } from './config'
 import { scanRouter } from './routes/scan'
 import { historyRouter } from './routes/history'
 import { optionSetsRouter } from './routes/optionsets'
@@ -17,13 +18,15 @@ import { pipelinesRouter } from './routes/pipelines'
 import { optimizerRouter } from './routes/optimizer'
 import { diagnosticsRouter } from './routes/diagnostics'
 import { auditRouter } from './routes/audit'
+import { setupRouter } from './routes/setup'
 
-const REQUIRED_ENV = ['AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'API_KEY']
-const missing = REQUIRED_ENV.filter(k => !process.env[k])
-if (missing.length > 0) {
-  console.error(`Missing required environment variables: ${missing.join(', ')}`)
-  console.error('Copy backend/.env.example to backend/.env and fill in your credentials.')
-  process.exit(1)
+// Load credentials saved via the in-app setup wizard (overrides .env)
+const savedConfig = loadSavedConfig()
+if (savedConfig) applyConfig(savedConfig)
+
+if (!isConfigured()) {
+  console.log('Vantage is not configured yet.')
+  console.log('Open http://localhost:3001 to complete setup.')
 }
 
 const app = express()
@@ -40,6 +43,18 @@ app.use(cors({
 
 app.use(express.json({ limit: '100kb' }))
 
+// ── Unauthenticated endpoints ──────────────────────────────────────────────
+app.get('/health', (_req, res) => res.json({ ok: true }))
+
+app.get('/config', (_req, res) => res.json({
+  apiKey: process.env.API_KEY,
+  configured: isConfigured(),
+}))
+
+// Setup wizard routes — no API key required (credentials don't exist yet)
+app.use('/setup', setupRouter)
+
+// ── Authenticated API routes ───────────────────────────────────────────────
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -59,12 +74,6 @@ app.use('/api', (req, res, next) => {
   next()
 })
 
-app.get('/health', (_req, res) => res.json({ ok: true }))
-
-// Config endpoint — unauthenticated, used by the frontend to resolve the API key
-// when served from this same Express server (same-origin production mode).
-app.get('/config', (_req, res) => res.json({ apiKey: process.env.API_KEY }))
-
 app.use('/api/scan', scanRouter)
 app.use('/api/scans', historyRouter)
 app.use('/api/optionsets', optionSetsRouter)
@@ -78,7 +87,7 @@ app.use('/api/optimizer', optimizerRouter)
 app.use('/api/diagnostics', diagnosticsRouter)
 app.use('/api/audit-log', auditRouter)
 
-// Serve pre-built frontend in production (single-server mode)
+// ── Static frontend (production single-server mode) ────────────────────────
 const frontendDist = path.join(__dirname, '../../frontend/dist')
 if (fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist))
