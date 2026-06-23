@@ -87,13 +87,23 @@ app.use('/api/optimizer', optimizerRouter)
 app.use('/api/diagnostics', diagnosticsRouter)
 app.use('/api/audit-log', auditRouter)
 
-// ── Static frontend (production single-server mode) ────────────────────────
-const frontendDist = path.join(__dirname, '../../frontend/dist')
+// ── Static frontend ────────────────────────────────────────────────────────
+// pkg exe: frontend lives in public/ next to the exe on the real filesystem.
+// Regular / dev build: frontend lives in ../../frontend/dist.
+const frontendDist = (process as any).pkg
+  ? path.join(path.dirname(process.execPath), 'public')
+  : path.join(__dirname, '../../frontend/dist')
+
 if (fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist))
   app.get('*', (_req, res) => res.sendFile(path.join(frontendDist, 'index.html')))
+} else if ((process as any).pkg) {
+  console.warn('Warning: public/ folder not found next to vantage.exe — place it in the same directory.')
 }
 
 app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`)
+  console.log(`Vantage running at http://localhost:${PORT}`)
+  if ((process as any).pkg) {
+    setTimeout(() => require('child_process').exec(`start http://localhost:${PORT}`), 1000)
+  }
 })

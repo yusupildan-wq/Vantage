@@ -2,7 +2,14 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 
-const CONFIG_PATH = path.join(__dirname, '../../data/config.json')
+// When running as a pkg standalone exe, store data next to the exe on the real filesystem.
+// __dirname inside pkg points to the virtual snapshot, not the disk.
+function getDataDir(): string {
+  if ((process as any).pkg) return path.join(path.dirname(process.execPath), 'data')
+  return path.join(__dirname, '../../data')
+}
+
+const CONFIG_PATH = path.join(getDataDir(), 'config.json')
 
 export interface VantageConfig {
   AZURE_TENANT_ID: string

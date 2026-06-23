@@ -14,14 +14,16 @@ Power Platform and Azure DevOps engineering toolkit for teams working with Datav
 
 ## Download and run
 
-**Requirements:** [Docker Desktop](https://www.docker.com/products/docker-desktop) *(recommended)* or [Node.js 18+](https://nodejs.org). No VS Code or terminal needed.
+**No installs required.**
 
-1. Go to [**Releases**](../../releases/latest) and download the latest `vantage-vX.X.X.zip` — or use **Code → Download ZIP** above
+1. Go to [**Releases**](../../releases/latest) and download the latest `vantage-vX.X.X.zip`
 2. Extract the zip anywhere on your machine
-3. Double-click **`Start Vantage.bat`**
-4. Vantage opens in your browser and walks you through entering your credentials — you only do this once
+3. Double-click **`vantage.exe`**
+4. Your browser opens automatically — enter your Azure credentials in the setup screen
 
-> First launch takes ~60 seconds to install and build. Every start after that is under 5 seconds.
+That's it. Your credentials are saved locally and you never have to enter them again.
+
+> **Windows security warning:** If you see "Windows protected your PC", click **More info → Run anyway**. This is expected for apps that aren't commercially code-signed.
 
 ---
 
@@ -163,8 +165,7 @@ active-layer-auditor/
 
 ## For developers
 
-If you want to run in dev mode with hot reload:
-
+**Dev mode with hot reload:**
 ```
 # Terminal 1
 cd backend && npm install && npm run dev
@@ -172,7 +173,25 @@ cd backend && npm install && npm run dev
 # Terminal 2
 cd frontend && npm install && npm run dev
 ```
-
 Frontend: http://localhost:5173 · Backend: http://localhost:3001
 
-Create `backend/.env` from `backend/.env.example`. The in-app setup wizard also works in dev mode and writes to `data/config.json`.
+The in-app setup wizard works in dev mode and writes credentials to `data/config.json`. Alternatively create `backend/.env` from `backend/.env.example`.
+
+**Build the standalone exe locally:**
+```
+cd frontend && npm run build        # builds frontend/dist
+cd ../backend && npm run build      # compiles TypeScript
+npm run package                     # creates vantage.exe in the project root
+```
+Copy `frontend/dist` to a `public/` folder next to `vantage.exe` before running it.
+
+**Docker:**
+```
+docker compose up --build
+```
+
+**Create a release:** Push a version tag and GitHub Actions builds and publishes everything automatically.
+```
+git tag v1.0.0
+git push origin v1.0.0
+```
