@@ -1,7 +1,7 @@
 import axios from 'axios'
 
-const OLLAMA_URL = 'http://localhost:11434/api/chat'
-const MODEL = 'llama3.1'
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+const MODEL = 'llama-3.1-8b-instant'
 
 export interface AIChange {
   id: string
@@ -17,94 +17,135 @@ export interface AIOptimizationResult {
   changes: AIChange[]
 }
 
-const SYSTEM_PROMPT = `You are an expert Azure DevOps pipeline optimizer specializing in Power Platform deployment pipelines.
+interface ParallelDecision {
+  stage: string
+  removeDependsOn: string[]
+  reason: string
+  savingMinutes: number
+}
 
-Analyze the provided YAML pipeline and return an optimized version as a JSON object with this EXACT structure (no markdown, no code fences, just raw JSON):
+interface AIParallelResponse {
+  decisions: ParallelDecision[]
+}
+
+function extractStageStructure(yaml: string): string {
+  const lines = yaml.split('\n')
+  const relevant: string[] = []
+  let inStages = false
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed === 'stages:') { inStages = true; continue }
+    if (inStages && (
+      trimmed.startsWith('- stage:') ||
+      trimmed.startsWith('displayName:') ||
+      trimmed.startsWith('dependsOn:') ||
+      trimmed.match(/^-\s+\w/)
+    )) {
+      relevant.push(line)
+    }
+    if (inStages && trimmed.startsWith('jobs:')) inStages = false
+  }
+
+  return relevant.length > 0 ? relevant.join('\n') : yaml.slice(0, 2000)
+}
+
+function applyParallelDecisions(yaml: string, decisions: ParallelDecision[]): string {
+  let result = yaml
+
+  const depsToRemove = new Set<string>()
+  for (const decision of decisions) {
+    for (const dep of decision.removeDependsOn) depsToRemove.add(dep)
+    depsToRemove.add(decision.stage)
+  }
+
+  for (const dep of depsToRemove) {
+    const escaped = dep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    result = result.replace(new RegExp(`\\n([ \\t]*)dependsOn:\\s*${escaped}\\s*(?=\\n)`, 'gi'), '')
+    result = result.replace(new RegExp(`\\n[ \\t]*-\\s*${escaped}\\s*(?=\\n)`, 'gi'), '')
+  }
+
+  result = result.replace(/\n[ \t]*dependsOn:\s*\n(?=[ \t]*(?:pool:|jobs:|steps:|condition:|variables:|-\s*stage:))/g, '\n')
+  result = result.replace(/\n[ \t]*dependsOn:\s*\[\s*\]\s*\n/g, '\n')
+
+  return result
+}
+
+const SYSTEM_PROMPT = `You are an Azure DevOps pipeline optimizer. You will be given a pipeline's stage structure and a list of parallelism improvements already identified by a rule engine.
+
+Your job: confirm which of these improvements are safe and return the specific dependsOn entries to remove.
+
+Return ONLY this JSON (no markdown, no explanation):
 {
-  "optimizedYaml": "<complete optimized YAML as a string with \\n for newlines>",
-  "changes": [
+  "decisions": [
     {
-      "id": "change-1",
-      "title": "Short title of what changed",
-      "description": "Detailed explanation of why this improves the pipeline",
-      "estimatedSavingMinutes": 30,
-      "confidence": "high",
-      "category": "parallelism"
+      "stage": "ExactStageName",
+      "removeDependsOn": ["ExactDependencyName"],
+      "reason": "One sentence why this is safe to parallelize",
+      "savingMinutes": 30
     }
   ]
 }
 
-Apply ALL of these optimizations where applicable:
+Only include a decision if you are confident the stages are truly independent (no shared artifacts, no logical ordering requirement). If unsure, omit it. Stage names must match exactly.`
 
-PARALLELISM (highest impact):
-- Identify stages that deploy to independent environments (e.g. Test and Staging with no shared artifacts) and remove their dependsOn to enable parallel execution
-- Stages that only share a common build artifact (not a deployment dependency) can run in parallel
-- Be aggressive — if there is no logical reason for sequential ordering, parallelize it
+export async function analyzeWithAI(
+  originalYaml: string,
+  parallelismHints: { title: string; description: string; estimatedSavingMinutes: number }[]
+): Promise<AIOptimizationResult> {
+  const apiKey = process.env.GROQ_API_KEY?.trim()
+  if (!apiKey) throw new Error('GROQ_API_KEY is not set in .env')
 
-CHECKOUT:
-- Add "fetchDepth: 1" to all checkout steps (shallow clone)
-- Add "lfs: false" to all checkout steps unless LFS is explicitly used
+  const stageStructure = extractStageStructure(originalYaml)
 
-TIMEOUTS:
-- Add "timeoutInMinutes: 60" to all jobs that do not have a timeout set
+  const hintsText = parallelismHints.length > 0
+    ? `\n\nRule engine already identified these parallelism opportunities:\n${parallelismHints.map((h, i) => `${i + 1}. ${h.title} (saves ~${h.estimatedSavingMinutes}m): ${h.description}`).join('\n')}`
+    : ''
 
-ARTIFACTS:
-- Add "continueOnError: true" to all PublishPipelineArtifact tasks to prevent rerun failures
-
-POWER PLATFORM:
-- Add "async: true" to PowerPlatformImportSolution tasks
-- Add "async: true" to PowerPlatformExportSolution tasks
-- Add "skipIfSameVersion: true" to PowerPlatformImportSolution tasks
-
-CACHING:
-- Add a cache step before npm install steps to cache node_modules
-- Add a cache step before NuGet restore steps
-
-Return ONLY the raw JSON object. No explanation, no markdown formatting, no code blocks.`
-
-export async function analyzeWithAI(yaml: string): Promise<AIOptimizationResult> {
   const resp = await axios.post(
-    OLLAMA_URL,
+    GROQ_URL,
     {
       model: MODEL,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `Optimize this Azure DevOps pipeline YAML and return only JSON:\n\n${yaml}` },
+        { role: 'user', content: `Pipeline stage structure:${hintsText}\n\n${stageStructure}\n\nReturn JSON decisions for which dependsOn entries to remove:` },
       ],
-      stream: false,
-      options: { temperature: 0.1, num_predict: 8192 },
+      temperature: 0.1,
+      max_tokens: 1024,
     },
-    { timeout: 180000 }
+    {
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      timeout: 30000,
+    }
   )
 
-  const content: string = resp.data.message?.content ?? ''
-
-  // Strip markdown code fences if model wraps its response
+  const content: string = resp.data.choices?.[0]?.message?.content ?? ''
   const stripped = content.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim()
-
   const jsonMatch = stripped.match(/\{[\s\S]*\}/)
+
   if (!jsonMatch) throw new Error('AI returned no valid JSON — try again')
 
-  let parsed: AIOptimizationResult
+  let parsed: AIParallelResponse
   try {
     parsed = JSON.parse(jsonMatch[0])
   } catch {
     throw new Error('AI returned malformed JSON — try again')
   }
 
-  if (typeof parsed.optimizedYaml !== 'string' || !Array.isArray(parsed.changes)) {
-    throw new Error('AI response is missing required fields')
-  }
+  if (!Array.isArray(parsed.decisions)) parsed.decisions = []
 
-  // Ensure all changes have required fields with fallbacks
-  parsed.changes = parsed.changes.map((c, i) => ({
-    id: c.id ?? `ai-change-${i + 1}`,
-    title: c.title ?? 'Optimization',
-    description: c.description ?? '',
-    estimatedSavingMinutes: typeof c.estimatedSavingMinutes === 'number' ? c.estimatedSavingMinutes : 0,
-    confidence: (['high', 'medium', 'low'] as const).includes(c.confidence) ? c.confidence : 'medium',
-    category: (['speed', 'cache', 'parallelism', 'cleanup'] as const).includes(c.category) ? c.category : 'speed',
+  const optimizedYaml = parsed.decisions.length > 0
+    ? applyParallelDecisions(originalYaml, parsed.decisions)
+    : originalYaml
+
+  const changes: AIChange[] = parsed.decisions.map((d, i) => ({
+    id: `ai-parallel-${i + 1}`,
+    title: `Parallelize ${d.stage}`,
+    description: d.reason,
+    estimatedSavingMinutes: typeof d.savingMinutes === 'number' ? d.savingMinutes : 30,
+    confidence: 'high' as const,
+    category: 'parallelism' as const,
   }))
 
-  return parsed
+  return { optimizedYaml, changes }
 }

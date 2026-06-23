@@ -258,7 +258,7 @@ export default function OptimizerPage() {
   )
   const selectedDef = definitions?.find(d => d.id === selectedId) ?? null
   const changedFiles = analysis?.fileChanges?.filter(f => f.changed) ?? []
-  const hasChanges = changedFiles.length > 0
+  const hasChanges = changedFiles.length > 0 || ((analysis as any)?.aiMode && (analysis?.optimizations?.length ?? 0) > 0)
   const changedRepoGroups = repoAnalysis?.groups.filter(g => g.fileChanges.some(f => f.changed)) ?? []
   const repoOptimizationCount = changedRepoGroups.reduce((total, group) => total + group.optimizations.length, 0)
 
@@ -469,18 +469,20 @@ export default function OptimizerPage() {
                   {/* AI mode toggle */}
                   <button
                     onClick={() => setAiMode(v => !v)}
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all"
+                    className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold transition-all cursor-pointer select-none"
                     style={{
-                      backgroundColor: aiMode ? 'rgba(167,139,250,0.12)' : 'var(--bg-elevated)',
-                      border: `1px solid ${aiMode ? 'rgba(167,139,250,0.4)' : 'var(--border-mid)'}`,
-                      color: aiMode ? '#a78bfa' : 'var(--text-muted)',
+                      backgroundColor: aiMode ? '#6d28d9' : 'rgba(167,139,250,0.08)',
+                      border: `1px solid ${aiMode ? '#7c3aed' : 'rgba(167,139,250,0.35)'}`,
+                      color: aiMode ? '#fff' : '#a78bfa',
+                      boxShadow: aiMode ? '0 0 14px rgba(109,40,217,0.35)' : 'none',
                     }}
-                    title="AI mode uses local Ollama to intelligently rewrite dependsOn chains and parallelize stages"
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = aiMode ? '#7c3aed' : 'rgba(167,139,250,0.15)' }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = aiMode ? '#6d28d9' : 'rgba(167,139,250,0.08)' }}
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                     </svg>
-                    AI Mode
+                    {aiMode ? 'AI Mode ON' : 'AI Mode'}
                   </button>
                   <button
                     onClick={analyze}

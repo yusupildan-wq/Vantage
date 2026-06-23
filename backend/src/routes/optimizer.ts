@@ -117,29 +117,30 @@ optimizerRouter.get('/ai-analyze', async (req: Request, res: Response) => {
   if (!pat) return
   try {
     const base = await fetchAndAnalyze(projectUrl, pat, parseInt(definitionId, 10))
-    const aiResult = await analyzeWithAI(base.originalYaml)
 
-    const optimizations = aiResult.changes.map(c => ({
-      id: c.id,
-      title: c.title,
-      description: c.description,
-      estimatedSavingMinutes: c.estimatedSavingMinutes,
-      confidence: c.confidence,
-      category: c.category,
-    }))
+    // Pass the rule engine's parallelism hints to the AI so it knows what to target
+    const parallelismHints = base.optimizations.filter(o => o.category === 'parallelism')
+
+    // AI works on the rule engine's already-optimized YAML (checkout, timeouts, etc. already applied)
+    // so the final result stacks AI parallelism ON TOP of rule engine fixes
+    const aiResult = await analyzeWithAI(base.optimizedYaml, parallelismHints)
+
+    // Merge: rule engine non-parallelism changes + AI parallelism changes
+    const ruleEngineChanges = base.optimizations.filter(o => o.category !== 'parallelism')
+    const allOptimizations = [...ruleEngineChanges, ...aiResult.changes]
 
     const normalizedYamlPath = base.yamlPath.startsWith('/') ? base.yamlPath : `/${base.yamlPath}`
     const fileChanges = base.fileChanges.map(f =>
       f.repositoryId === base.repositoryId && f.path === normalizedYamlPath
-        ? { ...f, optimizedContent: aiResult.optimizedYaml, optimizations, changed: f.originalContent !== aiResult.optimizedYaml }
+        ? { ...f, optimizedContent: aiResult.optimizedYaml, optimizations: allOptimizations, changed: f.originalContent !== aiResult.optimizedYaml }
         : f
     )
 
     res.json({
       ...base,
       optimizedYaml: aiResult.optimizedYaml,
-      optimizations,
-      estimatedSavingMinutes: optimizations.reduce((s, o) => s + o.estimatedSavingMinutes, 0),
+      optimizations: allOptimizations,
+      estimatedSavingMinutes: allOptimizations.reduce((s, o) => s + o.estimatedSavingMinutes, 0),
       fileChanges,
       aiMode: true,
     })
