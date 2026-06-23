@@ -12,8 +12,9 @@ import PipelinesPage from './pages/PipelinesPage'
 import OptimizerPage from './pages/OptimizerPage'
 import DiagnosticsPage from './pages/DiagnosticsPage'
 import AuditLogPage from './pages/AuditLogPage'
+import SetupPage from './pages/SetupPage'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+const API_URL = import.meta.env.VITE_API_URL ?? ''
 
 function BackendBanner() {
   const [status, setStatus] = useState<'checking' | 'ok' | 'down'>('checking')
@@ -37,13 +38,41 @@ function BackendBanner() {
     >
       {status === 'checking'
         ? 'Connecting to backend…'
-        : `Backend unreachable at ${API_URL}. Open a terminal, run: cd backend   then: npm run dev — and keep it running.`}
+        : 'Backend unreachable. Double-click Start Vantage.bat to start it, or run: cd backend → npm run dev'}
     </div>
   )
 }
 
+type AppStatus = 'loading' | 'setup' | 'ready'
+
 export default function App() {
   useSmoothScroll()
+  const [appStatus, setAppStatus] = useState<AppStatus>('loading')
+
+  useEffect(() => {
+    fetch(`${API_URL}/setup/status`)
+      .then(r => r.json())
+      .then(data => setAppStatus(data.configured ? 'ready' : 'setup'))
+      .catch(() => setAppStatus('ready')) // backend unreachable — show app so BackendBanner can explain
+  }, [])
+
+  if (appStatus === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-base)' }}>
+        <div className="flex flex-col items-center gap-3">
+          <div
+            className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+            style={{ borderColor: 'var(--border-mid)', borderTopColor: 'transparent' }}
+          />
+          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Starting…</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (appStatus === 'setup') {
+    return <SetupPage onComplete={() => setAppStatus('ready')} />
+  }
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-base)' }}>
