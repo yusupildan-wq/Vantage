@@ -12,6 +12,7 @@ import PipelinesPage from './pages/PipelinesPage'
 import OptimizerPage from './pages/OptimizerPage'
 import DiagnosticsPage from './pages/DiagnosticsPage'
 import AuditLogPage from './pages/AuditLogPage'
+import SettingsPage from './pages/SettingsPage'
 import SetupPage from './pages/SetupPage'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
@@ -89,6 +90,7 @@ export default function App() {
         <Route path="/optimizer"   element={<OptimizerPage />} />
         <Route path="/diagnostics" element={<DiagnosticsPage />} />
         <Route path="/audit-log"   element={<AuditLogPage />} />
+        <Route path="/settings"    element={<SettingsPage />} />
       </Routes>
       <footer
         className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-between"

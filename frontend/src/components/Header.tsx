@@ -11,11 +11,13 @@ const PAGE_LABELS: Record<string, string> = {
   '/optimizer':   'Pipeline Optimizer',
   '/diagnostics': 'Diagnostics',
   '/audit-log':   'Audit Log',
+  '/settings':    'Settings',
 }
 
 const SYSTEM_LINKS = [
+  { to: '/settings',    label: 'Settings',    description: 'Update credentials & reset' },
   { to: '/diagnostics', label: 'Diagnostics', description: 'Configuration checks' },
-  { to: '/audit-log', label: 'Audit Log', description: 'Confirmed action history' },
+  { to: '/audit-log',   label: 'Audit Log',   description: 'Confirmed action history' },
 ]
 
 export default function Header() {
