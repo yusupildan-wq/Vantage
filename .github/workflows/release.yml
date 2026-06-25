@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  PORTABLE_NODE_VERSION: 24.18.0
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -17,7 +20,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
           cache-dependency-path: |
             backend/package-lock.json
@@ -42,35 +45,52 @@ jobs:
           cd backend && npm audit --omit=dev --audit-level=high
           cd ../frontend && npm audit --omit=dev --audit-level=high
 
-      - name: Package Windows executable
-        working-directory: backend
-        run: npm run package
-
-      - name: Create release zip
+      - name: Assemble portable Windows release
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
-          mkdir -p release
-          cp vantage.exe release/
-          cp -r frontend/dist release/public
+          mkdir -p release/runtime release/backend release/frontend
+
+          curl --fail --location --silent --show-error \
+            --output node-win-x64.zip \
+            "https://nodejs.org/dist/v${PORTABLE_NODE_VERSION}/node-v${PORTABLE_NODE_VERSION}-win-x64.zip"
+          unzip -q node-win-x64.zip
+          cp "node-v${PORTABLE_NODE_VERSION}-win-x64/node.exe" release/runtime/node.exe
+          cp "node-v${PORTABLE_NODE_VERSION}-win-x64/LICENSE" release/runtime/NODE-LICENSE.txt
+
+          cp -r backend/dist release/backend/dist
+          cp backend/package.json backend/package-lock.json release/backend/
+          npm ci --omit=dev --prefix release/backend
+
+          cp -r frontend/dist release/frontend/dist
           cp -r config release/config
+          cp "Start Vantage.bat" release/
           cp README.md release/
           printf 'GROQ_API_KEY=%s\nAI_DATA_CONSENT=true\n' "$GROQ_API_KEY" > release/.env
-          cd release && zip -r "../vantage-${{ github.ref_name }}.zip" .
+
+      - name: Create ZIP and checksum
+        run: |
+          cd release
+          zip -r "../vantage-${{ github.ref_name }}.zip" .
+          cd ..
+          sha256sum "vantage-${{ github.ref_name }}.zip" > "vantage-${{ github.ref_name }}.zip.sha256"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: vantage-${{ github.ref_name }}.zip
+          files: |
+            vantage-${{ github.ref_name }}.zip
+            vantage-${{ github.ref_name }}.zip.sha256
           generate_release_notes: true
           body: |
             ## Download Vantage ${{ github.ref_name }}
 
-            1. Download **`vantage-${{ github.ref_name }}.zip`** from the Assets section below
-            2. Extract the zip anywhere on your machine
-            3. Double-click **`vantage.exe`**
-            4. Your browser opens automatically — enter your Azure credentials in the setup screen
+            1. Download **`vantage-${{ github.ref_name }}.zip`**
+            2. Optionally verify it against the included `.sha256` checksum
+            3. Extract the ZIP completely
+            4. Double-click **`Start Vantage.bat`**
+            5. Complete the first-run setup wizard
 
-            No Node.js, no Docker, no terminals required.
-
-            > **Windows security warning:** If you see "Windows protected your PC", click **More info → Run anyway**. This is expected for apps that are not commercially code-signed.
+            No Node.js, Docker, installer, or packed executable is required. The release
+            contains the official Node.js Windows runtime and normal application files.
+            AI features work out of the box — no extra setup needed.
