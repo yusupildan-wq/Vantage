@@ -2,6 +2,8 @@ import { Router } from 'express'
 import fs from 'fs'
 import path from 'path'
 import axios from 'axios'
+import { getClientConfigDir } from '../runtimePaths'
+import { getDataDir } from '../config'
 import { validateEnvironmentUrl, makeDataverseClient } from '../auth'
 
 export const diagnosticsRouter = Router()
@@ -33,7 +35,7 @@ function checkEnv(name: string, label: string, category: DiagnosticCheck['catego
 }
 
 function getClientConfigCheck(): DiagnosticCheck {
-  const configDir = path.resolve(__dirname, '../../../config/clients')
+  const configDir = getClientConfigDir()
   try {
     const files = fs.readdirSync(configDir).filter(file => file.endsWith('.json'))
     if (files.length === 0) {
@@ -123,7 +125,7 @@ function getEnvironmentUrlCheck(url: unknown): DiagnosticCheck {
 }
 
 function getAuditLogCheck(): DiagnosticCheck {
-  const dataDir = path.resolve(__dirname, '../../../data')
+  const dataDir = getDataDir()
   try {
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true })

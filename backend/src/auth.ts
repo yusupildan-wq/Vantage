@@ -1,13 +1,21 @@
 import { ConfidentialClientApplication } from '@azure/msal-node'
 import axios, { AxiosInstance } from 'axios'
 
-const msalClient = new ConfidentialClientApplication({
-  auth: {
-    clientId: process.env.AZURE_CLIENT_ID!,
-    clientSecret: process.env.AZURE_CLIENT_SECRET!,
-    authority: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}`,
-  },
-})
+export function createMsalClient(): ConfidentialClientApplication {
+  const clientId = process.env.AZURE_CLIENT_ID?.trim()
+  const clientSecret = process.env.AZURE_CLIENT_SECRET?.trim()
+  const tenantId = process.env.AZURE_TENANT_ID?.trim()
+  if (!clientId || !clientSecret || !tenantId) {
+    throw new Error('Vantage is not configured. Complete setup before connecting to Microsoft services.')
+  }
+  return new ConfidentialClientApplication({
+    auth: {
+      clientId,
+      clientSecret,
+      authority: `https://login.microsoftonline.com/${tenantId}`,
+    },
+  })
+}
 
 export function validateEnvironmentUrl(url: string): void {
   let parsed: URL
@@ -31,6 +39,7 @@ export async function makeDataverseClient(
   validateEnvironmentUrl(environmentUrl)
 
   const baseUrl = environmentUrl.endsWith('/') ? environmentUrl : `${environmentUrl}/`
+  const msalClient = createMsalClient()
   const result = await msalClient.acquireTokenByClientCredential({
     scopes: [`${baseUrl}.default`],
   })

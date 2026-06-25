@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import axios from 'axios'
 import { listDefinitions, fetchAndAnalyze, createOptimizationPRSafely, analyzeRepository, createRepoOptimizationPRs } from '../optimizer'
-import { analyzeWithAI, mergeAIOptimizations } from '../ai'
+import { analyzeWithAI, isAIConfigured, mergeAIOptimizations } from '../ai'
 import { recordAuditEvent } from '../audit'
 
 export const optimizerRouter = Router()
@@ -117,6 +117,14 @@ optimizerRouter.get('/ai-analyze', async (req: Request, res: Response) => {
   if (!pat) return
   try {
     const base = await fetchAndAnalyze(projectUrl, pat, parseInt(definitionId, 10))
+    if (!isAIConfigured()) {
+      res.json({
+        ...base,
+        aiMode: false,
+        aiUnavailableReason: 'Add your Groq API key and enable AI data sharing in Settings to unlock dependency-aware stage parallelism.',
+      })
+      return
+    }
 
     // Pass the rule engine's parallelism hints to the AI so it knows what to target
     const parallelismHints = base.optimizations.filter(o => o.category === 'parallelism')

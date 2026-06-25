@@ -9,26 +9,9 @@ echo   VANTAGE  ^|  Power Platform Engineering Toolkit
 echo   ================================================
 echo.
 
-:: ── 1. Ensure backend\.env exists ────────────────────────────────────────────
+:: ── 1. Ensure an optional environment file exists ───────────────────────────
 if not exist "backend\.env" (
-    echo   First-time setup: credentials file not found.
-    echo.
-    copy "backend\.env.example" "backend\.env" >nul 2>&1
-    echo   A template has been opened in Notepad.
-    echo   Fill in your Azure credentials and API key, then save and close Notepad.
-    echo   This window will continue automatically.
-    echo.
-    notepad "backend\.env"
-    echo.
-)
-
-:: Abort if credentials are still placeholders
-findstr /c:"<AZURE_TENANT_ID>" "backend\.env" >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    echo   [ERROR] Credentials not filled in. Edit backend\.env and try again.
-    echo.
-    pause
-    exit /b 1
+    type nul > "backend\.env"
 )
 
 :: ── 2. Try Docker (preferred — no Node.js install needed) ────────────────────

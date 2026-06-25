@@ -13,13 +13,6 @@
 
 ---
 
-## Screenshots
-
-<!-- Add screenshots here — suggested: dashboard overview, pipeline optimizer results, setup wizard -->
-> *Screenshots coming soon*
-
----
-
 ## What it does
 
 | Feature | Description |
@@ -43,7 +36,9 @@
 3. Double-click **`vantage.exe`**
 4. Your browser opens automatically — a setup wizard guides you through entering credentials on first launch
 
-Credentials are saved locally. You never enter them again.
+Credentials are encrypted and saved locally. You never enter them again.
+
+AI features use the shared Vantage agent configured by your administrator. Provider credentials are never embedded in the downloadable release.
 
 > **Windows security prompt:** Click **More info → Run anyway** if Windows SmartScreen appears. Expected for unsigned apps.
 
@@ -57,9 +52,9 @@ Credentials are saved locally. You never enter them again.
 | **Frontend** | React 18 · Vite · Tailwind CSS · React Router v7 |
 | **Authentication** | MSAL `ConfidentialClientApplication` client credentials flow (Dataverse) · PAT Basic auth (Azure DevOps) |
 | **APIs consumed** | Microsoft Dataverse OData v9.2 · Azure DevOps Build REST API · Azure DevOps Git REST API |
-| **Security middleware** | Helmet (CSP, HSTS, X-Frame-Options) · CORS lockdown · API key auth · rate limiting · SSRF prevention · path traversal blocking |
+| **Security middleware** | Helmet (CSP, HSTS, X-Frame-Options) · CORS lockdown · HttpOnly local sessions · rate limiting · SSRF prevention · path traversal blocking |
 | **Distribution** | `@yao-pkg/pkg` standalone exe · Docker multi-stage build · GitHub Actions CI/CD release pipeline |
-| **Data** | JSON file store for scan history and credentials · in-app first-launch setup wizard |
+| **Data** | JSON scan history · AES-256-GCM encrypted credentials · in-app first-launch setup wizard |
 
 ---
 
@@ -73,7 +68,7 @@ Credentials are saved locally. You never enter them again.
 │  │  React SPA   │    │  Express API                 │   │
 │  │  (served     │───▶│  /api/*  (X-API-Key auth)    │   │
 │  │  from /public│    │  /setup/* (unauthenticated)  │   │
-│  │  folder)     │    │  /health  /config             │   │
+│  │  folder)     │    │  /health  /session            │   │
 │  └──────────────┘    └──────────┬───────────────────┘   │
 │                                 │                        │
 └─────────────────────────────────┼────────────────────────┘
@@ -198,14 +193,17 @@ Branch safety: verifies target branch exists, checks optimizer branch doesn't al
 |---|---|
 | HTTP security headers | `helmet` — CSP, HSTS, X-Frame-Options, X-Content-Type-Options |
 | CORS | Only `localhost:*` origins accepted (or explicit `FRONTEND_URL`) |
-| API key auth | Every `/api/*` request requires a valid `X-API-Key` header |
+| Browser authentication | Every `/api/*` request requires an HttpOnly, SameSite local session cookie |
+| Automation authentication | Optional `X-API-Key` support for approved scripts and headless clients |
 | Rate limiting | 200 requests / 15 min / IP via `express-rate-limit` |
 | Payload size | 100 kb max via `express.json({ limit })` |
 | OAuth2 token acquisition | MSAL `ConfidentialClientApplication` — tokens stay server-side |
 | SSRF prevention | Environment URLs validated against HTTPS + `.dynamics.com` allowlist |
 | Path traversal | Optimizer file paths checked for `..`, bare `/`, and newline characters |
-| Credential storage | Written to `data/config.json`, never logged or returned to the client |
-| Setup endpoint | `/setup/*` routes are unauthenticated by design — only functional before credentials exist |
+| Credential storage | AES-256-GCM encrypted in `data/config.enc.json` with a separate local key file |
+| Setup endpoints | Public setup can only create the initial configuration; update/reset routes require authentication |
+| Local network boundary | Desktop server binds to `127.0.0.1`; Docker publishes only to `127.0.0.1:3001` |
+| AI privacy | Only stage dependency metadata or requested flow-error text is sent to Groq after explicit consent |
 
 ---
 
@@ -259,7 +257,7 @@ npm run dev
 ```
 Backend: http://localhost:3001 · Frontend: http://localhost:5173
 
-The setup wizard works in dev mode and writes to `data/config.json`. You can also create `backend/.env` from `backend/.env.example` to skip the wizard.
+The setup wizard works in dev mode and writes encrypted credentials to `data/config.enc.json`. You can also create `backend/.env` from `backend/.env.example` to supply administrator-managed settings.
 
 **Build the standalone exe:**
 ```bash
@@ -276,6 +274,14 @@ npm run package        # output: vantage.exe
 ```bash
 docker compose up --build          # serves everything on http://localhost:3001
 ```
+
+Docker stores credentials, scan history, and audit logs in the persistent `vantage-data` volume. The service is bound to localhost by default.
+
+### Shared AI agent
+
+The team uses one consistent Vantage AI agent: the same Groq model, prompts, and safety rules for every coworker. An administrator supplies `GROQ_API_KEY` privately through `backend/.env`, a managed environment variable, or a private `.env` beside `vantage.exe`. The key is intentionally excluded from GitHub release archives.
+
+Users explicitly enable AI data sharing during setup. Pipeline optimization sends stage names and dependency structure—not credentials or complete YAML files. Flow explanations send only the flow name and error text selected by the user.
 
 **Publish a release** — GitHub Actions builds the exe and publishes automatically:
 ```bash

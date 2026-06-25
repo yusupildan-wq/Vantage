@@ -1,18 +1,11 @@
-import { ConfidentialClientApplication } from '@azure/msal-node'
 import axios, { AxiosInstance } from 'axios'
+import { createMsalClient } from './auth'
 
 // ── Auth (same pattern as comparison.ts) ──────────────────────────────────
 
-const msalClient = new ConfidentialClientApplication({
-  auth: {
-    clientId: process.env.AZURE_CLIENT_ID!,
-    clientSecret: process.env.AZURE_CLIENT_SECRET!,
-    authority: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}`,
-  },
-})
-
 async function getToken(environmentUrl: string): Promise<string> {
   const base = environmentUrl.endsWith('/') ? environmentUrl : `${environmentUrl}/`
+  const msalClient = createMsalClient()
   const result = await msalClient.acquireTokenByClientCredential({ scopes: [`${base}.default`] })
   if (!result) throw new Error('Failed to acquire access token')
   return result.accessToken

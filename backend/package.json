@@ -4,13 +4,15 @@
   "type": "commonjs",
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
-    "test": "ts-node src/__tests__/pasteparse.test.ts && ts-node src/__tests__/optimizer.test.ts && ts-node src/__tests__/writes.test.ts",
+    "test": "ts-node src/__tests__/pasteparse.test.ts && ts-node src/__tests__/optimizer.test.ts && ts-node src/__tests__/writes.test.ts && ts-node src/__tests__/security.test.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "package": "npx @yao-pkg/pkg dist/index.js --targets node20-win-x64 --output ../vantage.exe"
+    "package": "npx @yao-pkg/pkg@6.19.0 dist/index.js --targets node22-win-x64 --output ../vantage.exe"
   },
   "pkg": {
-    "targets": ["node20-win-x64"]
+    "targets": [
+      "node22-win-x64"
+    ]
   },
   "dependencies": {
     "@azure/msal-node": "^5.2.3",
