@@ -40,8 +40,10 @@ steps:
   assert.ok(ids(yaml).includes('ci-path-filters'))
   assert.ok(ids(yaml).includes('dotnet-build-no-restore'))
   assert.ok(ids(yaml).includes('dotnet-test-no-build'))
-  assert.equal(result.optimizedYaml.includes('--no-restore'), false)
-  assert.equal(result.optimizedYaml.includes('--no-build'), false)
+  // These are now auto-applied (no longer recommendation-only)
+  assert.ok(result.optimizedYaml.includes('--no-restore'), 'dotnet build --no-restore was not applied')
+  assert.ok(result.optimizedYaml.includes('--no-build'), 'dotnet test --no-build was not applied')
+  assert.ok(result.optimizedYaml.includes('batch: true'), 'trigger batch: true was not applied')
 }
 
 {
@@ -68,6 +70,7 @@ steps:
       estimatedSavingMinutes: 20,
       confidence: 'high' as const,
       category: 'speed' as const,
+      applied: true,
     },
     {
       id: 'parallel-stages',
@@ -76,6 +79,7 @@ steps:
       estimatedSavingMinutes: 120,
       confidence: 'low' as const,
       category: 'parallelism' as const,
+      applied: false,
     },
   ]
   const ai = [{
@@ -85,6 +89,7 @@ steps:
     estimatedSavingMinutes: 30,
     confidence: 'high' as const,
     category: 'parallelism' as const,
+    applied: true,
   }]
   const merged = mergeAIOptimizations(base, ai)
   assert.equal(merged.estimatedSavingMinutes, 140)
@@ -101,6 +106,7 @@ steps:
     estimatedSavingMinutes: 30,
     confidence: 'high',
     category: 'parallelism',
+    applied: true,
   }])
   assert.equal(merged.estimatedSavingMinutes, 30)
 }
@@ -175,6 +181,79 @@ steps:
   assert.equal(asyncCount, 1, `asyncOperation: appeared ${asyncCount} times`)
   assert.equal(skipCount, 1, `skipLowerVersion: appeared ${skipCount} times`)
   console.log('✓  PP import: asyncOperation and skipLowerVersion added exactly once')
+}
+
+// ── Regression: parallel-env-deploy auto-applies to PP sequential chain ──────
+
+{
+  const yaml = `stages:
+  - stage: Build
+    displayName: Build
+    jobs:
+      - job: BuildJob
+        steps:
+          - task: PowerPlatformExportSolution@2
+            inputs:
+              authenticationType: PowerPlatformSPN
+
+  - stage: DeployTest
+    dependsOn: Build
+    displayName: Deploy to Test
+    jobs:
+      - deployment: TestDeploy
+
+  - stage: DeployStaging
+    dependsOn: DeployTest
+    displayName: Deploy to Staging
+    jobs:
+      - deployment: StagingDeploy
+
+  - stage: DeployProd
+    dependsOn: DeployStaging
+    displayName: Deploy to Production
+    jobs:
+      - deployment: ProdDeploy
+`
+  const result = applyRules(yaml)
+  assert.ok(result.optimizations.some(o => o.id === 'parallel-env-deploy'), 'parallel-env-deploy not detected')
+  // DeployStaging should now depend on Build (not DeployTest)
+  assert.ok(result.optimizedYaml.includes('- stage: DeployStaging'), 'DeployStaging stage missing')
+  const stagingBlock = result.optimizedYaml.split('- stage: DeployStaging')[1].split('- stage:')[0]
+  assert.ok(stagingBlock.includes('dependsOn: Build'), `DeployStaging should dependsOn Build, got: ${stagingBlock.slice(0, 200)}`)
+  assert.ok(!stagingBlock.includes('dependsOn: DeployTest'), 'DeployStaging still depends on DeployTest (chain not parallelized)')
+  // DeployProd should fan-in on [DeployTest, DeployStaging]
+  const prodBlock = result.optimizedYaml.split('- stage: DeployProd')[1]
+  assert.ok(prodBlock.includes('- DeployTest'), 'DeployProd does not list DeployTest as dependency')
+  assert.ok(prodBlock.includes('- DeployStaging'), 'DeployProd does not list DeployStaging as dependency')
+  // Build stage unchanged
+  assert.ok(!result.optimizedYaml.split('- stage: Build')[1].split('- stage:')[0].includes('dependsOn'), 'Build stage should have no dependsOn')
+  console.log('✓  parallel-env-deploy: sequential PP chain parallelized (Test||Staging → Prod fan-in)')
+}
+
+{
+  // Short chain (Build → Test → Prod) — only 2 deploy stages, nothing to parallelize
+  const yaml = `stages:
+  - stage: Build
+    jobs:
+      - job: BuildJob
+        steps:
+          - task: PowerPlatformExportSolution@2
+  - stage: DeployTest
+    dependsOn: Build
+    jobs:
+      - deployment: TestDeploy
+  - stage: DeployProd
+    dependsOn: DeployTest
+    jobs:
+      - deployment: ProdDeploy
+`
+  const result = applyRules(yaml)
+  // 3 stages, 2 deps — detect requires 4+ stages, so rule should NOT fire
+  assert.ok(!result.optimizations.some(o => o.id === 'parallel-env-deploy'), 'parallel-env-deploy should not fire on 3-stage chain')
+  // dependsOn entries must remain unchanged (sequential order preserved)
+  assert.ok(result.optimizedYaml.includes('dependsOn: Build'), 'DeployTest should still depend on Build')
+  assert.ok(result.optimizedYaml.includes('dependsOn: DeployTest'), 'DeployProd should still depend on DeployTest')
+  console.log('✓  parallel-env-deploy: 3-stage chain left unchanged (nothing to parallelize)')
 }
 
 console.log('optimizer tests passed')

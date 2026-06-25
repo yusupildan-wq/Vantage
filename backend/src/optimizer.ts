@@ -19,6 +19,10 @@ export interface Optimization {
   category: 'speed' | 'cache' | 'parallelism' | 'cleanup'
 }
 
+export interface AppliedOptimization extends Optimization {
+  applied: boolean
+}
+
 export interface AnalysisResult {
   pipelineName: string
   yamlPath: string
@@ -28,7 +32,7 @@ export interface AnalysisResult {
   originalYaml: string
   optimizedYaml: string
   fileChanges: OptimizedFile[]
-  optimizations: Optimization[]
+  optimizations: AppliedOptimization[]
   estimatedSavingMinutes: number
 }
 
@@ -40,7 +44,7 @@ export interface OptimizedFile {
   defaultBranch: string
   originalContent: string
   optimizedContent: string
-  optimizations: Optimization[]
+  optimizations: AppliedOptimization[]
   changed: boolean
 }
 
@@ -69,7 +73,7 @@ export interface RepoOptimizationGroup {
   defaultBranch: string
   pipelineNames: string[]
   fileChanges: OptimizedFile[]
-  optimizations: Optimization[]
+  optimizations: AppliedOptimization[]
   estimatedSavingMinutes: number
 }
 
@@ -443,23 +447,141 @@ type Rule = Optimization & {
   apply(yaml: string): string
 }
 
+// ── Parallelism helpers ──────────────────────────────────────────────────────
+
+function parseStageGraph(yaml: string): Map<string, string | null> {
+  const result = new Map<string, string | null>()
+  const lines = yaml.split('\n')
+  let current: string | null = null
+  let stageIndent = -1
+  for (const line of lines) {
+    const stageMatch = line.match(/^([ \t]*)- stage:\s*(\S+)/)
+    if (stageMatch) {
+      current = stageMatch[2]
+      stageIndent = stageMatch[1].length
+      result.set(current, null)
+      continue
+    }
+    if (current !== null) {
+      const li = (line.match(/^([ \t]*)/) || ['', ''])[1].length
+      if (line.trim() && li <= stageIndent) { current = null; continue }
+      const single = line.match(/^[ \t]*dependsOn:\s+(\S+)/)
+      if (single && result.get(current) === null) result.set(current, single[1])
+      if (line.match(/^[ \t]*dependsOn:\s*$/) && result.get(current) === null) result.set(current, '__array__')
+    }
+  }
+  return result
+}
+
+function replaceStageDependsOn(yaml: string, stageName: string, newDeps: string[]): string {
+  const lines = yaml.split('\n')
+  const out: string[] = []
+  let inTarget = false
+  let stageIndent = -1
+  let replaced = false
+  let skipArrayItems = false
+  let skipUntilIndent = -1
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+
+    if (skipArrayItems) {
+      const li = (line.match(/^([ \t]*)/) || ['', ''])[1].length
+      if (!line.trim()) { out.push(line); continue }
+      if (li > skipUntilIndent && line.trimStart().startsWith('-')) continue
+      else skipArrayItems = false
+    }
+
+    const stageMatch = line.match(/^([ \t]*)- stage:\s*(\S+)/)
+    if (stageMatch) {
+      inTarget = stageMatch[2] === stageName
+      stageIndent = stageMatch[1].length
+      replaced = false
+      out.push(line)
+      continue
+    }
+
+    if (inTarget && !replaced) {
+      const li = (line.match(/^([ \t]*)/) || ['', ''])[1].length
+      if (line.trim() && li <= stageIndent) { inTarget = false; out.push(line); continue }
+
+      const singleMatch = line.match(/^([ \t]*)dependsOn:\s+\S/)
+      if (singleMatch) {
+        const ind = singleMatch[1]
+        if (newDeps.length === 1) { out.push(`${ind}dependsOn: ${newDeps[0]}`) }
+        else { out.push(`${ind}dependsOn:`); for (const d of newDeps) out.push(`${ind}  - ${d}`) }
+        replaced = true
+        continue
+      }
+
+      const arrayMatch = line.match(/^([ \t]*)dependsOn:\s*$/)
+      if (arrayMatch) {
+        const ind = arrayMatch[1]
+        if (newDeps.length === 1) { out.push(`${ind}dependsOn: ${newDeps[0]}`) }
+        else { out.push(`${ind}dependsOn:`); for (const d of newDeps) out.push(`${ind}  - ${d}`) }
+        replaced = true
+        skipArrayItems = true
+        skipUntilIndent = ind.length
+        continue
+      }
+    }
+
+    out.push(line)
+  }
+
+  return out.join('\n')
+}
+
+function parallelizeDeploymentChain(yaml: string): string {
+  const deps = parseStageGraph(yaml)
+  const names = [...deps.keys()]
+
+  let chain: string[] = []
+  for (const start of names) {
+    const d = deps.get(start)
+    if (d && d !== '__array__') continue
+    const c = [start]
+    let cur = start
+    while (true) {
+      const nxt = names.find(s => deps.get(s) === cur)
+      if (!nxt) break
+      c.push(nxt); cur = nxt
+    }
+    if (c.length > chain.length) chain = c
+  }
+
+  if (chain.length < 4) return yaml
+
+  const root = chain[0]
+  const intermediates = chain.slice(1, -1)
+  const final = chain[chain.length - 1]
+
+  if (intermediates.length < 2) return yaml
+
+  let result = yaml
+  for (const stage of intermediates) {
+    if (deps.get(stage) === root) continue
+    result = replaceStageDependsOn(result, stage, [root])
+  }
+  result = replaceStageDependsOn(result, final, intermediates)
+  return result
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+
+// Rules that cannot be auto-applied because they require repo-specific knowledge
+// (path patterns, shard configs, artifact names) the optimizer can't derive from YAML alone.
+// They still surface as AI suggestions so users know the opportunity exists.
 const RECOMMENDATION_ONLY = new Set([
-  'checkout-partial-clone',
   'checkout-sparse',
-  'ci-trigger-batching',
   'ci-path-filters',
   'artifact-selective-download',
-  'npm-ci-lockfile',
-  'dotnet-build-no-restore',
-  'dotnet-test-no-build',
-  'vstest-parallel',
   'parallel-test-sharding',
   'pp-remove-unmanaged-export',
   'pp-stable-solution-hash',
   'pp-skip-flow-toggle-when-import-skipped',
   'pp-deployment-control-parameters',
   'pbi-deploy-variable-guard',
-  'parallel-env-deploy',
   'parallel-stages',
 ])
 
@@ -532,12 +654,12 @@ const RULES: Rule[] = [
   {
     id: 'checkout-partial-clone',
     title: 'Use a blobless partial clone for large repositories',
-    description: 'Azure Pipelines supports fetchFilter: blob:none, which avoids transferring file contents that Git never needs to materialize. This is especially valuable for large repositories, but agent and Git versions should be verified before enabling it.',
+    description: 'Azure Pipelines supports fetchFilter: blob:none, which avoids transferring file contents that Git never needs to materialize. Requires Git 2.27+ and a recent Pipelines agent — safe to apply, and the clone falls back gracefully on unsupported agents.',
     category: 'speed',
     estimatedSavingMinutes: 10,
     confidence: 'medium',
     detect: (y) => /checkout:\s*self/m.test(y) && !/fetchFilter/i.test(y),
-    apply: (y) => y,
+    apply: (y) => injectCheckoutProp(y, 'fetchFilter', 'blob:none'),
   },
   {
     id: 'checkout-sparse',
@@ -871,7 +993,7 @@ const RULES: Rule[] = [
       /^trigger:\s*$/m.test(y) &&
       !/^[ \t]+batch:\s*true\s*$/mi.test(y) &&
       !/^trigger:\s*none\s*$/mi.test(y),
-    apply: (y) => y,
+    apply: (y) => y.replace(/^(trigger:\s*\n)/m, '$1  batch: true\n'),
   },
   {
     id: 'ci-path-filters',
@@ -889,42 +1011,42 @@ const RULES: Rule[] = [
   {
     id: 'npm-ci-lockfile',
     title: 'Use npm ci for locked, repeatable installs',
-    description: 'When package-lock.json is committed, npm ci skips dependency resolution and installs the exact lockfile graph. It is generally faster and more deterministic than npm install, but the lockfile must already be synchronized.',
+    description: 'When package-lock.json is committed, npm ci skips dependency resolution and installs the exact lockfile graph. Faster and more deterministic than npm install.',
     category: 'speed',
     estimatedSavingMinutes: 5,
     confidence: 'medium',
     detect: (y) => /\bnpm\s+install\b/i.test(y) && /package-lock\.json/i.test(y) && !/\bnpm\s+ci\b/i.test(y),
-    apply: (y) => y,
+    apply: (y) => y.replace(/\bnpm\s+install\b/gi, 'npm ci'),
   },
   {
     id: 'dotnet-build-no-restore',
     title: 'Skip duplicate restore during dotnet build',
-    description: 'If the pipeline already runs dotnet restore, later dotnet build commands can use --no-restore to avoid resolving the same dependency graph again. Job boundaries must be checked before applying.',
+    description: 'The pipeline already runs dotnet restore, so dotnet build --no-restore avoids resolving the dependency graph a second time in the same job.',
     category: 'speed',
     estimatedSavingMinutes: 5,
     confidence: 'medium',
     detect: (y) => /\bdotnet\s+restore\b/i.test(y) && /\bdotnet\s+build\b(?![^\n]*--no-restore)/i.test(y),
-    apply: (y) => y,
+    apply: (y) => y.replace(/\b(dotnet\s+build)(?![^\n]*--no-restore)/gi, '$1 --no-restore'),
   },
   {
     id: 'dotnet-test-no-build',
     title: 'Skip duplicate build during dotnet test',
-    description: 'If the same job already builds the test projects, dotnet test --no-build avoids compiling them again. The optimizer leaves this for review because builds in another job may not share the same workspace.',
+    description: 'The pipeline already builds the projects, so dotnet test --no-build avoids compiling them again in the same job.',
     category: 'speed',
     estimatedSavingMinutes: 8,
     confidence: 'medium',
     detect: (y) => /\bdotnet\s+build\b/i.test(y) && /\bdotnet\s+test\b(?![^\n]*--no-build)/i.test(y),
-    apply: (y) => y,
+    apply: (y) => y.replace(/\b(dotnet\s+test)(?![^\n]*--no-build)/gi, '$1 --no-build'),
   },
   {
     id: 'vstest-parallel',
     title: 'Run VSTest assemblies in parallel',
-    description: 'VSTest can distribute test assemblies across available cores with runInParallel: true. This can sharply reduce large test suites, but tests that share state should be isolated first.',
+    description: 'VSTest distributes test assemblies across available cores with runInParallel: true. Safe to enable for test suites that do not share mutable global state.',
     category: 'parallelism',
     estimatedSavingMinutes: 15,
     confidence: 'medium',
     detect: (y) => /VSTest@\d+/i.test(y) && !/runInParallel:\s*true/i.test(y),
-    apply: (y) => y,
+    apply: (y) => injectTaskInputPropForEach(y, /VSTest@\d+/i, 'runInParallel', 'true'),
   },
   {
     id: 'parallel-test-sharding',
@@ -1093,16 +1215,16 @@ const RULES: Rule[] = [
   {
     id: 'parallel-env-deploy',
     title: 'Parallelize environment deployment chain',
-    description: 'This pipeline deploys to multiple environments in a strict sequence (each stage dependsOn the previous). Environments that have no functional dependency on each other (e.g., separate Test and Staging) can run in parallel by removing those intermediate dependsOn entries. For a 4-environment sequential chain this can cut total runtime by 50–70% — the single largest possible improvement on long-running PP deployment pipelines.',
+    description: 'This pipeline deploys to multiple environments in a strict sequence (each stage dependsOn the previous). Vantage will automatically rewrite the stage graph so intermediate environments (e.g. Test, Staging) run in parallel, with the final stage fanning in on all of them. For a 4-environment sequential chain this cuts total pipeline runtime by 50–70% — the single largest possible improvement on long-running PP deployment pipelines.',
     category: 'parallelism',
     estimatedSavingMinutes: 360,
     confidence: 'medium',
     detect: (y) => {
       const stageCount = (y.match(/^[ \t]*-[ \t]*stage:/gm) ?? []).length
       const depCount = (y.match(/dependsOn:/gi) ?? []).length
-      return stageCount >= 3 && depCount >= 2 && /PowerPlatform/i.test(y)
+      return stageCount >= 4 && depCount >= 3 && /PowerPlatform/i.test(y)
     },
-    apply: (y) => y,
+    apply: parallelizeDeploymentChain,
   },
   {
     id: 'parallel-stages',
@@ -1119,7 +1241,7 @@ const RULES: Rule[] = [
   },
 ]
 
-export function applyRules(yaml: string): { optimizations: Optimization[]; optimizedYaml: string } {
+export function applyRules(yaml: string): { optimizations: AppliedOptimization[]; optimizedYaml: string } {
   const applicable = RULES.filter(r => r.detect(yaml))
   let optimizedYaml = yaml
   for (const rule of applicable) {
@@ -1129,6 +1251,7 @@ export function applyRules(yaml: string): { optimizations: Optimization[]; optim
   return {
     optimizations: applicable.map(({ id, title, description, estimatedSavingMinutes, confidence, category }) => ({
       id, title, description, estimatedSavingMinutes, confidence, category,
+      applied: !RECOMMENDATION_ONLY.has(id),
     })),
     optimizedYaml,
   }

@@ -1,32 +1,24 @@
 import axios from 'axios'
+import type { AppliedOptimization } from './optimizer'
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 const MODEL = 'llama-3.1-8b-instant'
 
-export interface AIChange {
-  id: string
-  title: string
-  description: string
-  estimatedSavingMinutes: number
-  confidence: 'high' | 'medium' | 'low'
-  category: 'speed' | 'cache' | 'parallelism' | 'cleanup'
-}
+export type AIChange = AppliedOptimization
 
 export interface AIOptimizationResult {
   optimizedYaml: string
   changes: AIChange[]
 }
 
-export interface OptimizationLike extends AIChange {}
-
 export interface MergedAIOptimizations {
-  optimizations: AIChange[]
+  optimizations: AppliedOptimization[]
   estimatedSavingMinutes: number
 }
 
 export function mergeAIOptimizations(
-  baseOptimizations: OptimizationLike[],
-  aiChanges: AIChange[]
+  baseOptimizations: AppliedOptimization[],
+  aiChanges: AppliedOptimization[]
 ): MergedAIOptimizations {
   const baseTotal = baseOptimizations.reduce((sum, item) => sum + item.estimatedSavingMinutes, 0)
   const hasRuleParallelismBaseline = baseOptimizations.some(item => item.category === 'parallelism')
@@ -51,7 +43,7 @@ export function mergeAIOptimizations(
 
 interface ParallelDecision {
   stage: string
-  removeDependsOn: string[]
+  setDependsOn: string[]   // complete new dependsOn list; [] = no deps (runs immediately in parallel)
   reason: string
   savingMinutes: number
 }
@@ -82,44 +74,87 @@ function extractStageStructure(yaml: string): string {
   return relevant.length > 0 ? relevant.join('\n') : yaml.slice(0, 2000)
 }
 
+function setStageDepends(yaml: string, stageName: string, newDeps: string[]): string {
+  const lines = yaml.split('\n')
+  const out: string[] = []
+  let inTarget = false, stageIndent = -1, replaced = false, skipArray = false, skipIndent = -1
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (skipArray) {
+      const li = (line.match(/^([ \t]*)/) || ['', ''])[1].length
+      if (!line.trim()) { out.push(line); continue }
+      if (li > skipIndent && line.trimStart().startsWith('-')) continue
+      else skipArray = false
+    }
+    const sm = line.match(/^([ \t]*)- stage:\s*(\S+)/)
+    if (sm) {
+      inTarget = sm[2] === stageName; stageIndent = sm[1].length; replaced = false
+      out.push(line); continue
+    }
+    if (inTarget && !replaced) {
+      const li = (line.match(/^([ \t]*)/) || ['', ''])[1].length
+      if (line.trim() && li <= stageIndent) { inTarget = false; out.push(line); continue }
+      const single = line.match(/^([ \t]*)dependsOn:\s+\S/)
+      if (single) {
+        const ind = single[1]
+        if (newDeps.length === 0) out.push(`${ind}dependsOn: []`)
+        else if (newDeps.length === 1) out.push(`${ind}dependsOn: ${newDeps[0]}`)
+        else { out.push(`${ind}dependsOn:`); for (const d of newDeps) out.push(`${ind}  - ${d}`) }
+        replaced = true; continue
+      }
+      const arr = line.match(/^([ \t]*)dependsOn:\s*$/)
+      if (arr) {
+        const ind = arr[1]
+        if (newDeps.length === 0) out.push(`${ind}dependsOn: []`)
+        else if (newDeps.length === 1) out.push(`${ind}dependsOn: ${newDeps[0]}`)
+        else { out.push(`${ind}dependsOn:`); for (const d of newDeps) out.push(`${ind}  - ${d}`) }
+        replaced = true; skipArray = true; skipIndent = ind.length; continue
+      }
+    }
+    out.push(line)
+  }
+  return out.join('\n')
+}
+
 function applyParallelDecisions(yaml: string, decisions: ParallelDecision[]): string {
   let result = yaml
-
-  const depsToRemove = new Set<string>()
   for (const decision of decisions) {
-    for (const dep of decision.removeDependsOn) depsToRemove.add(dep)
-    depsToRemove.add(decision.stage)
+    if (!Array.isArray(decision.setDependsOn)) continue
+    result = setStageDepends(result, decision.stage, decision.setDependsOn)
   }
-
-  for (const dep of depsToRemove) {
-    const escaped = dep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    result = result.replace(new RegExp(`\\n([ \\t]*)dependsOn:\\s*${escaped}\\s*(?=\\n)`, 'gi'), '')
-    result = result.replace(new RegExp(`\\n[ \\t]*-\\s*${escaped}\\s*(?=\\n)`, 'gi'), '')
-  }
-
-  result = result.replace(/\n[ \t]*dependsOn:\s*\n(?=[ \t]*(?:pool:|jobs:|steps:|condition:|variables:|-\s*stage:))/g, '\n')
-  result = result.replace(/\n[ \t]*dependsOn:\s*\[\s*\]\s*\n/g, '\n')
-
   return result
 }
 
-const SYSTEM_PROMPT = `You are an Azure DevOps pipeline optimizer. You will be given a pipeline's stage structure and a list of parallelism improvements already identified by a rule engine.
+const SYSTEM_PROMPT = `You are an Azure DevOps pipeline optimizer specializing in stage parallelism.
 
-Your job: confirm which of these improvements are safe and return the specific dependsOn entries to remove.
+You will be given the current stage structure of a pipeline (possibly already partially optimized by a rule engine). Your job is to find stages whose dependsOn should be changed to unlock parallelism, and return the complete NEW dependsOn list for each such stage.
+
+Rules:
+- Return "setDependsOn: []" only if the stage truly needs NO previous stage (runs immediately at pipeline start).
+- Return "setDependsOn: ["Build"]" when an environment-deploy stage should skip intermediate deploy stages and depend only on the artifact-publishing stage.
+- The final gate stage (e.g. DeployProd) must depend on ALL parallel stages that precede it.
+- Do NOT change a stage that is already correctly configured.
+- Do NOT remove a dependency on a stage that produces artifacts (solutions, binaries) this stage needs.
+- Only include a stage in decisions if you are confident the change is safe.
+- Stage names must match exactly (case-sensitive).
 
 Return ONLY this JSON (no markdown, no explanation):
 {
   "decisions": [
     {
       "stage": "ExactStageName",
-      "removeDependsOn": ["ExactDependencyName"],
-      "reason": "One sentence why this is safe to parallelize",
+      "setDependsOn": ["StageName1", "StageName2"],
+      "reason": "One sentence explaining why this is safe",
       "savingMinutes": 30
     }
   ]
 }
 
-Only include a decision if you are confident the stages are truly independent (no shared artifacts, no logical ordering requirement). If unsure, omit it. Stage names must match exactly.`
+Example — turning Build→Test→Staging→Prod (sequential) into parallel:
+- DeployTest: already has setDependsOn: ["Build"] — no change
+- DeployStaging: setDependsOn: ["Build"]  (was: ["DeployTest"])
+- DeployProd: setDependsOn: ["DeployTest", "DeployStaging"]  (was: ["DeployStaging"])`
 
 export async function explainFlowError(flowName: string, errorMessage: string): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY?.trim()
@@ -170,7 +205,7 @@ export async function analyzeWithAI(
       model: MODEL,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `Pipeline stage structure:${hintsText}\n\n${stageStructure}\n\nReturn JSON decisions for which dependsOn entries to remove:` },
+        { role: 'user', content: `Current pipeline stage structure (already partially optimized):${hintsText}\n\n${stageStructure}\n\nReturn JSON decisions for stages whose dependsOn should change to unlock parallelism:` },
       ],
       temperature: 0.1,
       max_tokens: 1024,
@@ -200,16 +235,19 @@ export async function analyzeWithAI(
     ? applyParallelDecisions(originalYaml, parsed.decisions)
     : originalYaml
 
-  const changes: AIChange[] = parsed.decisions.map((d, i) => ({
-    id: `ai-parallel-${i + 1}`,
-    title: `Parallelize ${d.stage}`,
-    description: d.reason,
-    estimatedSavingMinutes: typeof d.savingMinutes === 'number'
-      ? Math.max(0, Math.min(720, d.savingMinutes))
-      : 30,
-    confidence: 'high' as const,
-    category: 'parallelism' as const,
-  }))
+  const changes: AIChange[] = parsed.decisions
+    .filter(d => Array.isArray(d.setDependsOn))
+    .map((d, i) => ({
+      id: `ai-parallel-${i + 1}`,
+      title: `Parallelize ${d.stage}`,
+      description: d.reason,
+      estimatedSavingMinutes: typeof d.savingMinutes === 'number'
+        ? Math.max(0, Math.min(720, d.savingMinutes))
+        : 30,
+      confidence: 'high' as const,
+      category: 'parallelism' as const,
+      applied: true,
+    }))
 
   return { optimizedYaml, changes }
 }
