@@ -18,6 +18,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Test and build backend
+        working-directory: backend
+        run: |
+          npm ci
+          npm test
+          npm run build
 
       - name: Build frontend
         working-directory: frontend
@@ -26,13 +37,14 @@ jobs:
           printf 'VITE_API_URL=\nVITE_API_KEY=\n' > .env
           npm run build
 
-      - name: Build backend
-        working-directory: backend
-        run: npm ci && npm run build
+      - name: Audit production dependencies
+        run: |
+          cd backend && npm audit --omit=dev --audit-level=high
+          cd ../frontend && npm audit --omit=dev --audit-level=high
 
       - name: Package Windows executable
         working-directory: backend
-        run: npx @yao-pkg/pkg dist/index.js --targets node20-win-x64 --output ../vantage.exe
+        run: npm run package
 
       - name: Create release zip
         env:
@@ -41,8 +53,9 @@ jobs:
           mkdir -p release
           cp vantage.exe release/
           cp -r frontend/dist release/public
+          cp -r config release/config
           cp README.md release/
-          printf 'GROQ_API_KEY=%s\n' "$GROQ_API_KEY" > release/.env
+          printf 'GROQ_API_KEY=%s\nAI_DATA_CONSENT=true\n' "$GROQ_API_KEY" > release/.env
           cd release && zip -r "../vantage-${{ github.ref_name }}.zip" .
 
       - name: Publish GitHub Release
@@ -60,4 +73,4 @@ jobs:
 
             No Node.js, no Docker, no terminals required.
 
-            > **Windows security warning:** If you see "Windows protected your PC", click **More info → Run anyway**. This is expected for apps that aren't commercially code-signed.
+            > **Windows security warning:** If you see "Windows protected your PC", click **More info → Run anyway**. This is expected for apps that are not commercially code-signed.

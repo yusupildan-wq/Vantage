@@ -1,39 +1,57 @@
 import { Router, Request, Response } from 'express'
-import fs from 'fs'
-import path from 'path'
-import { isConfigured, saveConfig, applyConfig, generateApiKey, loadSavedConfig, VantageConfig } from '../config'
+import {
+  isConfigured,
+  saveConfig,
+  applyConfig,
+  loadSavedConfig,
+  resetSavedConfig,
+  VantageConfig,
+} from '../config'
 
 export const setupRouter = Router()
+export const settingsRouter = Router()
 
 setupRouter.get('/status', (_req: Request, res: Response) => {
   res.json({ configured: isConfigured() })
 })
 
-// GET /setup/current — return masked current credential values for the settings page
-setupRouter.get('/current', (_req: Request, res: Response) => {
-  const mask = (v: string | undefined) => v ? `${v.slice(0, 4)}${'•'.repeat(Math.max(0, v.length - 8))}${v.slice(-4)}` : ''
+settingsRouter.get('/current', (_req: Request, res: Response) => {
+  const mask = (value: string | undefined) =>
+    value ? `${value.slice(0, 4)}${'•'.repeat(Math.max(0, value.length - 8))}${value.slice(-4)}` : ''
+
   res.json({
     azureTenantId: process.env.AZURE_TENANT_ID ?? '',
     azureClientId: process.env.AZURE_CLIENT_ID ?? '',
     azureClientSecretMasked: mask(process.env.AZURE_CLIENT_SECRET),
     azureDevOpsPatMasked: mask(process.env.AZURE_DEVOPS_PAT),
-    hasDevOpsPat: !!(process.env.AZURE_DEVOPS_PAT?.trim()),
+    hasDevOpsPat: Boolean(process.env.AZURE_DEVOPS_PAT?.trim()),
+    hasGroqApiKey: Boolean(process.env.GROQ_API_KEY?.trim()),
+    aiDataConsent: process.env.AI_DATA_CONSENT === 'true',
   })
 })
 
-// POST /setup/update — update one or more credential fields
-setupRouter.post('/update', (req: Request, res: Response) => {
+settingsRouter.post('/update', (req: Request, res: Response) => {
   const saved = loadSavedConfig()
-  if (!saved) { res.status(400).json({ error: 'Not configured yet.' }); return }
+  if (!saved) {
+    res.status(400).json({ error: 'Not configured yet.' })
+    return
+  }
 
-  const { azureTenantId, azureClientId, azureClientSecret, azureDevOpsPat } = req.body
+  const {
+    azureTenantId,
+    azureClientId,
+    azureClientSecret,
+    azureDevOpsPat,
+    aiDataConsent,
+  } = req.body
 
   const updated: VantageConfig = {
     ...saved,
-    ...(azureTenantId?.trim()     ? { AZURE_TENANT_ID:     azureTenantId.trim() }     : {}),
-    ...(azureClientId?.trim()     ? { AZURE_CLIENT_ID:     azureClientId.trim() }     : {}),
+    ...(azureTenantId?.trim() ? { AZURE_TENANT_ID: azureTenantId.trim() } : {}),
+    ...(azureClientId?.trim() ? { AZURE_CLIENT_ID: azureClientId.trim() } : {}),
     ...(azureClientSecret?.trim() ? { AZURE_CLIENT_SECRET: azureClientSecret.trim() } : {}),
-    ...(azureDevOpsPat?.trim()    ? { AZURE_DEVOPS_PAT:    azureDevOpsPat.trim() }    : {}),
+    ...(azureDevOpsPat?.trim() ? { AZURE_DEVOPS_PAT: azureDevOpsPat.trim() } : {}),
+    ...(typeof aiDataConsent === 'boolean' ? { AI_DATA_CONSENT: aiDataConsent } : {}),
   }
 
   saveConfig(updated)
@@ -41,14 +59,9 @@ setupRouter.post('/update', (req: Request, res: Response) => {
   res.json({ success: true })
 })
 
-// POST /setup/reset — wipe saved config and force re-setup on next launch
-setupRouter.post('/reset', (_req: Request, res: Response) => {
+settingsRouter.post('/reset', (_req: Request, res: Response) => {
   try {
-    const dataDir = (process as any).pkg
-      ? path.join(path.dirname(process.execPath), 'data')
-      : path.join(__dirname, '../../../data')
-    const configPath = path.join(dataDir, 'config.json')
-    if (fs.existsSync(configPath)) fs.unlinkSync(configPath)
+    resetSavedConfig()
     res.json({ success: true })
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to reset' })
@@ -61,7 +74,13 @@ setupRouter.post('/save', (req: Request, res: Response) => {
     return
   }
 
-  const { azureTenantId, azureClientId, azureClientSecret, azureDevOpsPat } = req.body
+  const {
+    azureTenantId,
+    azureClientId,
+    azureClientSecret,
+    azureDevOpsPat,
+    aiDataConsent,
+  } = req.body
 
   if (!azureTenantId?.trim() || !azureClientId?.trim() || !azureClientSecret?.trim()) {
     res.status(400).json({ error: 'Tenant ID, Client ID, and Client Secret are required.' })
@@ -72,12 +91,11 @@ setupRouter.post('/save', (req: Request, res: Response) => {
     AZURE_TENANT_ID: azureTenantId.trim(),
     AZURE_CLIENT_ID: azureClientId.trim(),
     AZURE_CLIENT_SECRET: azureClientSecret.trim(),
-    API_KEY: generateApiKey(),
     ...(azureDevOpsPat?.trim() ? { AZURE_DEVOPS_PAT: azureDevOpsPat.trim() } : {}),
+    AI_DATA_CONSENT: aiDataConsent === true,
   }
 
   saveConfig(config)
   applyConfig(config)
-
   res.json({ success: true })
 })

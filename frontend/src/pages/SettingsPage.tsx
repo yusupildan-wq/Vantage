@@ -7,6 +7,8 @@ interface CurrentConfig {
   azureClientSecretMasked: string
   azureDevOpsPatMasked: string
   hasDevOpsPat: boolean
+  hasGroqApiKey: boolean
+  aiDataConsent: boolean
 }
 
 function Field({
@@ -68,6 +70,7 @@ export default function SettingsPage() {
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [devOpsPat, setDevOpsPat] = useState('')
+  const [aiDataConsent, setAiDataConsent] = useState(false)
 
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
@@ -79,7 +82,11 @@ export default function SettingsPage() {
   useEffect(() => {
     apiFetch(`${API_URL}/api/setup/current`)
       .then(r => r.json())
-      .then(d => { setConfig(d); setLoading(false) })
+      .then(d => {
+        setConfig(d)
+        setAiDataConsent(Boolean(d.aiDataConsent))
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
   }, [])
 
@@ -87,11 +94,12 @@ export default function SettingsPage() {
     setSaving(true)
     setSaveStatus('idle')
     try {
-      const body: Record<string, string> = {}
+      const body: Record<string, string | boolean> = {}
       if (tenantId.trim())     body.azureTenantId = tenantId.trim()
       if (clientId.trim())     body.azureClientId = clientId.trim()
       if (clientSecret.trim()) body.azureClientSecret = clientSecret.trim()
       if (devOpsPat.trim())    body.azureDevOpsPat = devOpsPat.trim()
+      if (config && aiDataConsent !== config.aiDataConsent) body.aiDataConsent = aiDataConsent
 
       if (Object.keys(body).length === 0) {
         setSaveStatus('error')
@@ -117,6 +125,7 @@ export default function SettingsPage() {
 
       const refreshed = await apiFetch(`${API_URL}/api/setup/current`).then(r => r.json())
       setConfig(refreshed)
+      setAiDataConsent(Boolean(refreshed.aiDataConsent))
       setSaveStatus('success')
     } catch (err) {
       setSaveStatus('error')
@@ -163,6 +172,8 @@ export default function SettingsPage() {
                 { label: 'Client ID', value: config?.azureClientId },
                 { label: 'Client Secret', value: config?.azureClientSecretMasked },
                 { label: 'DevOps PAT', value: config?.hasDevOpsPat ? config.azureDevOpsPatMasked : 'Not set' },
+                { label: 'Shared AI Agent', value: config?.hasGroqApiKey ? 'Configured by administrator' : 'Not configured' },
+                { label: 'AI Data Sharing', value: config?.aiDataConsent ? 'Enabled' : 'Disabled' },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between text-sm">
                   <span style={{ color: 'var(--text-muted)' }}>{label}</span>
@@ -182,6 +193,17 @@ export default function SettingsPage() {
               <Field label="Client ID (Application ID)" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={clientId} onChange={setClientId} masked={config?.azureClientId ? `${config.azureClientId.slice(0,8)}…` : undefined} />
               <Field label="Client Secret" placeholder="Enter new secret value" value={clientSecret} onChange={setClientSecret} type="password" masked={config?.azureClientSecretMasked} />
               <Field label="Azure DevOps PAT" hint="Required for Pipeline Health Dashboard and Pipeline Optimizer." placeholder="Enter new PAT" value={devOpsPat} onChange={setDevOpsPat} type="password" masked={config?.hasDevOpsPat ? config.azureDevOpsPatMasked : undefined} />
+              <label className="flex items-start gap-3 text-xs cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
+                <input
+                  type="checkbox"
+                  checked={aiDataConsent}
+                  onChange={event => setAiDataConsent(event.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Allow pipeline stage metadata and flow names/error messages to be sent to Groq when AI features are used. Credentials and complete pipeline files are not sent.
+                </span>
+              </label>
             </div>
 
             <div className="mt-6 flex items-center gap-3">

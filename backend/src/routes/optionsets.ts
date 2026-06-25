@@ -3,6 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import axios from 'axios'
 import { ClientConfig } from '../types'
+import { getClientConfigDir } from '../runtimePaths'
 import { makeDataverseClient, validateEnvironmentUrl } from '../auth'
 import { checkOptionSets, restoreOptionSets } from '../optionsets'
 import { parsePastedContent, comparePastedWithDev } from '../pastecompare'
@@ -10,7 +11,7 @@ import { recordAuditEvent } from '../audit'
 
 export const optionSetsRouter = Router()
 
-const CONFIG_DIR = path.join(__dirname, '../../../config/clients')
+const CONFIG_DIR = getClientConfigDir()
 
 function loadClientConfig(environmentUrl: string): ClientConfig | null {
   if (!fs.existsSync(CONFIG_DIR)) return null

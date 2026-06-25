@@ -47,6 +47,8 @@ interface AnalysisResult {
   fileChanges: OptimizedFile[]
   optimizations: Optimization[]
   estimatedSavingMinutes: number
+  aiMode?: boolean
+  aiUnavailableReason?: string
 }
 
 interface PRResult {
@@ -511,6 +513,14 @@ export default function OptimizerPage() {
           </div>
         )}
 
+        {analysis?.aiUnavailableReason && mode === 'single' && (
+          <div className="rounded-xl px-5 py-4"
+            style={{ backgroundColor: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.22)', color: '#fbbf24' }}>
+            <p className="text-sm font-semibold mb-1">Deterministic analysis completed</p>
+            <p className="text-xs opacity-80">{analysis.aiUnavailableReason}</p>
+          </div>
+        )}
+
         {/* ── Repo-wide mode ─────────────────────────────────────────────── */}
         {definitions && definitions.length > 0 && mode === 'repo' && (
           <div className="relative rounded-xl overflow-hidden"
@@ -524,7 +534,7 @@ export default function OptimizerPage() {
                 </h3>
                 <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                   Scans all {definitions.filter(d => d.optimizable).length} YAML pipelines, crawls every template file they reference,
-                  deduplicates files across pipelines, and applies all {'{'}20+{'}'} optimization rules across the whole codebase.
+                  deduplicates files across pipelines, and applies all 47 optimization rules across the whole codebase.
                   One draft PR per repository — main is never touched.
                 </p>
               </div>
@@ -810,13 +820,13 @@ export default function OptimizerPage() {
                     {analysis.yamlPath} · {analysis.repositoryName}
                   </p>
                 </div>
-                <span className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg shrink-0"
+                {analysis.aiMode && <span className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg shrink-0"
                   style={{ backgroundColor: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa' }}>
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                   </svg>
                   AI Enhanced
-                </span>
+                </span>}
               </div>
 
               {analysis.optimizations.length === 0 ? (

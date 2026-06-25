@@ -1,23 +1,17 @@
-import { ConfidentialClientApplication } from '@azure/msal-node'
 import axios, { AxiosInstance } from 'axios'
 import * as fs from 'fs'
 import * as path from 'path'
 import { scanEnvironment } from './dataverse'
 import { checkOptionSets } from './optionsets'
 import { ClientConfig, ReadinessCheck, ReadinessReport } from './types'
+import { createMsalClient } from './auth'
+import { getClientConfigDir } from './runtimePaths'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 
-const msalClient = new ConfidentialClientApplication({
-  auth: {
-    clientId: process.env.AZURE_CLIENT_ID!,
-    clientSecret: process.env.AZURE_CLIENT_SECRET!,
-    authority: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}`,
-  },
-})
-
 async function getToken(environmentUrl: string): Promise<string> {
   const base = environmentUrl.endsWith('/') ? environmentUrl : `${environmentUrl}/`
+  const msalClient = createMsalClient()
   const result = await msalClient.acquireTokenByClientCredential({ scopes: [`${base}.default`] })
   if (!result) throw new Error('Failed to acquire access token')
   return result.accessToken
@@ -39,7 +33,7 @@ function makeClient(baseUrl: string, token: string): AxiosInstance {
 
 // ── Config loader (same logic as routes/optionsets.ts) ────────────────────
 
-const CONFIG_DIR = path.join(__dirname, '../../../config/clients')
+const CONFIG_DIR = getClientConfigDir()
 
 function loadClientConfig(environmentUrl: string): ClientConfig | null {
   if (!fs.existsSync(CONFIG_DIR)) return null

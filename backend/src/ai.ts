@@ -4,6 +4,19 @@ import type { AppliedOptimization } from './optimizer'
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 const MODEL = 'llama-3.1-8b-instant'
 
+export function isAIConfigured(): boolean {
+  return Boolean(process.env.GROQ_API_KEY?.trim()) && process.env.AI_DATA_CONSENT === 'true'
+}
+
+function requireAIConfiguration(): string {
+  const apiKey = process.env.GROQ_API_KEY?.trim()
+  if (!apiKey) throw new Error('AI features require your own Groq API key in Settings.')
+  if (process.env.AI_DATA_CONSENT !== 'true') {
+    throw new Error('AI data sharing consent is required in Settings before sending data to Groq.')
+  }
+  return apiKey
+}
+
 export type AIChange = AppliedOptimization
 
 export interface AIOptimizationResult {
@@ -157,8 +170,7 @@ Example — turning Build→Test→Staging→Prod (sequential) into parallel:
 - DeployProd: setDependsOn: ["DeployTest", "DeployStaging"]  (was: ["DeployStaging"])`
 
 export async function explainFlowError(flowName: string, errorMessage: string): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY?.trim()
-  if (!apiKey) throw new Error('GROQ_API_KEY is not set in .env')
+  const apiKey = requireAIConfiguration()
 
   const resp = await axios.post(
     GROQ_URL,
@@ -190,8 +202,7 @@ export async function analyzeWithAI(
   originalYaml: string,
   parallelismHints: { title: string; description: string; estimatedSavingMinutes: number }[]
 ): Promise<AIOptimizationResult> {
-  const apiKey = process.env.GROQ_API_KEY?.trim()
-  if (!apiKey) throw new Error('GROQ_API_KEY is not set in .env')
+  const apiKey = requireAIConfiguration()
 
   const stageStructure = extractStageStructure(originalYaml)
 

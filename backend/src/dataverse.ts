@@ -1,17 +1,10 @@
-import { ConfidentialClientApplication } from '@azure/msal-node'
 import axios, { AxiosInstance } from 'axios'
 import { ScanResult, ComponentStatus } from './types'
-
-const msalClient = new ConfidentialClientApplication({
-  auth: {
-    clientId: process.env.AZURE_CLIENT_ID!,
-    clientSecret: process.env.AZURE_CLIENT_SECRET!,
-    authority: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}`,
-  },
-})
+import { createMsalClient } from './auth'
 
 async function getToken(environmentUrl: string): Promise<string> {
   const baseUrl = environmentUrl.endsWith('/') ? environmentUrl : `${environmentUrl}/`
+  const msalClient = createMsalClient()
   const result = await msalClient.acquireTokenByClientCredential({
     scopes: [`${baseUrl}.default`],
   })

@@ -1,30 +1,30 @@
 export const API_URL = import.meta.env.VITE_API_URL ?? ''
 
-let _apiKey: string | null = null
+let sessionPromise: Promise<void> | null = null
 
-async function resolveApiKey(): Promise<string> {
-  if (_apiKey !== null) return _apiKey
-  if (import.meta.env.VITE_API_KEY) {
-    _apiKey = import.meta.env.VITE_API_KEY
-    return _apiKey!
+async function ensureSession(): Promise<void> {
+  if (!sessionPromise) {
+    sessionPromise = fetch(`${API_URL}/session`, {
+      method: 'POST',
+      credentials: 'include',
+    }).then(response => {
+      if (!response.ok) throw new Error('Could not establish a local Vantage session.')
+    }).catch(error => {
+      sessionPromise = null
+      throw error
+    })
   }
-  // Production: fetch key from backend (same-origin, served by Express)
-  try {
-    const res = await fetch(`${API_URL}/config`)
-    const data = await res.json()
-    _apiKey = data.apiKey ?? ''
-  } catch {
-    _apiKey = ''
-  }
-  return _apiKey!
+  return sessionPromise
 }
 
 export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const key = await resolveApiKey()
+  await ensureSession()
+  const apiKey = import.meta.env.VITE_API_KEY
   return fetch(url, {
     ...options,
+    credentials: 'include',
     headers: {
-      'X-API-Key': key,
+      ...(apiKey ? { 'X-API-Key': apiKey } : {}),
       ...options.headers,
     },
   })

@@ -7,6 +7,7 @@ interface FormData {
   clientId: string
   clientSecret: string
   adoPat: string
+  aiDataConsent: boolean
 }
 
 function Field({
@@ -154,13 +155,19 @@ function HowToGuide({ type }: { type: 'azure' | 'devops' }) {
 
 export default function SetupPage({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(1)
-  const [form, setForm] = useState<FormData>({ tenantId: '', clientId: '', clientSecret: '', adoPat: '' })
+  const [form, setForm] = useState<FormData>({
+    tenantId: '',
+    clientId: '',
+    clientSecret: '',
+    adoPat: '',
+    aiDataConsent: false,
+  })
   const [showSecret, setShowSecret] = useState(false)
   const [showPat, setShowPat] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  function set(key: keyof FormData) {
+  function set(key: 'tenantId' | 'clientId' | 'clientSecret' | 'adoPat') {
     return (v: string) => setForm(f => ({ ...f, [key]: v }))
   }
 
@@ -180,6 +187,7 @@ export default function SetupPage({ onComplete }: { onComplete: () => void }) {
           azureClientId: form.clientId.trim(),
           azureClientSecret: form.clientSecret.trim(),
           azureDevOpsPat: form.adoPat.trim() || undefined,
+          aiDataConsent: form.aiDataConsent,
         }),
       })
       const data = await res.json()
@@ -237,7 +245,7 @@ export default function SetupPage({ onComplete }: { onComplete: () => void }) {
               Connect to Azure
             </h1>
             <p className="text-sm mb-6 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Vantage needs read access to your Microsoft environment. These credentials stay on your machine only — nothing is sent to any external server.
+              Vantage needs access to your Microsoft environment. Credentials are encrypted locally; only service requests you initiate are sent to Microsoft.
             </p>
 
             <div className="flex flex-col gap-5 mb-5">
@@ -369,6 +377,26 @@ export default function SetupPage({ onComplete }: { onComplete: () => void }) {
 
             <HowToGuide type="devops" />
 
+            <div className="mt-6 pt-6" style={{ borderTop: '1px solid var(--border)' }}>
+              <h2 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
+                AI features <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span>
+              </h2>
+              <p className="text-xs mb-4 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                Your administrator provides the shared Vantage AI agent. It performs dependency-aware pipeline optimization and flow-error explanations.
+              </p>
+              <label className="flex items-start gap-3 text-xs cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
+                <input
+                  type="checkbox"
+                  checked={form.aiDataConsent}
+                  onChange={event => setForm(current => ({ ...current, aiDataConsent: event.target.checked }))}
+                  className="mt-0.5"
+                />
+                <span>
+                  I understand that pipeline stage metadata and flow names/error messages are sent to Groq when I use AI features. Full credentials and complete pipeline files are not sent.
+                </span>
+              </label>
+            </div>
+
             {error && (
               <p className="mt-4 text-xs rounded-lg px-3 py-2" style={{ color: '#f87171', backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
                 {error}
@@ -421,7 +449,7 @@ export default function SetupPage({ onComplete }: { onComplete: () => void }) {
               You're all set
             </h1>
             <p className="text-sm mb-8 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Your credentials are saved on this machine. You won't need to do this again.
+              Your credentials are encrypted and saved on this machine. You won't need to do this again.
             </p>
             <button
               className="w-full py-2.5 rounded-lg text-sm font-medium"
@@ -435,7 +463,7 @@ export default function SetupPage({ onComplete }: { onComplete: () => void }) {
       </div>
 
       <p className="mt-6 text-xs text-center" style={{ color: 'var(--text-muted)' }}>
-        Credentials are stored locally on this machine only.
+        Credentials are encrypted at rest and stored locally on this machine.
       </p>
     </div>
   )

@@ -16,7 +16,8 @@ flowsRouter.post('/explain-error', async (req: Request, res: Response) => {
     const explanation = await explainFlowError(flowName, errorMessage)
     res.json({ explanation })
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' })
+    const message = err instanceof Error ? err.message : 'Failed'
+    res.status(message.includes('Settings') ? 503 : 500).json({ error: message })
   }
 })
 
