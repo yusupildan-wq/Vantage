@@ -105,4 +105,76 @@ steps:
   assert.equal(merged.estimatedSavingMinutes, 30)
 }
 
+// ── Regression: injectCheckoutProp must not duplicate properties ─────────────
+
+{
+  // Standalone checkout: self — all checkout rules fire together.
+  // Before the fix, lfs/submodules/persistCredentials/fetchTags each appeared twice.
+  const yaml = `steps:
+  - checkout: self
+`
+  const result = applyRules(yaml)
+  const props = ['fetchDepth', 'lfs', 'submodules', 'persistCredentials', 'fetchTags']
+  for (const prop of props) {
+    const count = (result.optimizedYaml.match(new RegExp(prop + ':', 'g')) ?? []).length
+    assert.equal(count, 1, `${prop}: appeared ${count} times (expected 1) — duplicate bug regressed`)
+  }
+  console.log('✓  standalone checkout: no duplicate checkout properties')
+}
+
+{
+  // Multi-line checkout block already present — same regression check.
+  const yaml = `steps:
+  - checkout: self
+    persistCredentials: true
+    clean: true
+`
+  const result = applyRules(yaml)
+  const props = ['fetchDepth', 'lfs', 'submodules', 'fetchTags']
+  for (const prop of props) {
+    const count = (result.optimizedYaml.match(new RegExp(prop + ':', 'g')) ?? []).length
+    assert.equal(count, 1, `${prop}: appeared ${count} times in multi-line case`)
+  }
+  // persistCredentials was already set — should not be added again
+  const pcCount = (result.optimizedYaml.match(/persistCredentials:/g) ?? []).length
+  assert.equal(pcCount, 1, 'persistCredentials: duplicated when already present')
+  // clean: true should be removed
+  assert.ok(!result.optimizedYaml.includes('clean: true'), 'clean: true was not removed')
+  console.log('✓  multi-line checkout: no duplicate properties, existing props preserved')
+}
+
+{
+  // Artifact task renames must not corrupt the task name (simple string replacement safety)
+  const yaml = `steps:
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: drop
+  - task: DownloadBuildArtifacts@0
+    inputs:
+      buildType: current
+`
+  const result = applyRules(yaml)
+  assert.ok(result.optimizedYaml.includes('PublishPipelineArtifact@1'), 'PublishPipelineArtifact@1 not found after upgrade')
+  assert.ok(result.optimizedYaml.includes('DownloadPipelineArtifact@2'), 'DownloadPipelineArtifact@2 not found after upgrade')
+  assert.ok(!result.optimizedYaml.includes('PublishBuildArtifacts@1'), 'Old task still present after upgrade')
+  assert.ok(!result.optimizedYaml.includes('DownloadBuildArtifacts@0'), 'Old task still present after upgrade')
+  console.log('✓  artifact task upgrades: task names replaced correctly')
+}
+
+{
+  // PP import async flags must be added exactly once even when multiple rules touch the same task
+  const yaml = `steps:
+  - task: PowerPlatformImportSolution@2
+    inputs:
+      authenticationType: PowerPlatformSPN
+      SolutionInputFile: drop/solution.zip
+`
+  const result = applyRules(yaml)
+  const asyncCount = (result.optimizedYaml.match(/asyncOperation:/g) ?? []).length
+  const skipCount = (result.optimizedYaml.match(/skipLowerVersion:/g) ?? []).length
+  assert.equal(asyncCount, 1, `asyncOperation: appeared ${asyncCount} times`)
+  assert.equal(skipCount, 1, `skipLowerVersion: appeared ${skipCount} times`)
+  console.log('✓  PP import: asyncOperation and skipLowerVersion added exactly once')
+}
+
 console.log('optimizer tests passed')

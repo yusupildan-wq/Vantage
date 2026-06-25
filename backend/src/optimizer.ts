@@ -133,21 +133,23 @@ async function pConcurrent<T>(
 
 function injectCheckoutProp(yaml: string, propName: string, propValue: string): string {
   if (new RegExp(`^[ \\t]*${propName}:`, 'm').test(yaml)) return yaml
+  let matched = false
   // Multi-line checkout block (already has other properties)
-  let result = yaml.replace(
+  const result = yaml.replace(
     /^([ \t]*-\s*checkout:\s*self\n)((?:[ \t]+[^\n]+\n)+)/gm,
     (match, header, block) => {
       if (new RegExp(`\\b${propName}:`).test(block)) return match
+      matched = true
       const indent = header.match(/^([ \t]*)/)?.[1] ?? ''
       return `${header}${block}${indent}  ${propName}: ${propValue}\n`
     }
   )
-  // Standalone - checkout: self
-  result = result.replace(
+  if (matched) return result
+  // Standalone - checkout: self (only when no multi-line block was found)
+  return result.replace(
     /^([ \t]*)-\s*checkout:\s*self\s*$/gm,
     (_, indent) => `${indent}- checkout: self\n${indent}  ${propName}: ${propValue}`
   )
-  return result
 }
 
 function injectTaskInputProp(yaml: string, taskRegex: RegExp, propName: string, propValue: string): string {
