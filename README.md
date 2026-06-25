@@ -33,7 +33,7 @@
 
 1. Go to [**Releases**](../../releases/latest) and download the latest `vantage-vX.X.X.zip`
 2. Extract the zip anywhere on your machine
-3. Double-click **`vantage.exe`**
+3. Double-click **`Start Vantage.bat`**
 4. Your browser opens automatically — a setup wizard guides you through entering credentials on first launch
 
 Credentials are encrypted and saved locally. You never enter them again.
@@ -53,7 +53,7 @@ AI features use the shared Vantage agent configured by your administrator. Provi
 | **Authentication** | MSAL `ConfidentialClientApplication` client credentials flow (Dataverse) · PAT Basic auth (Azure DevOps) |
 | **APIs consumed** | Microsoft Dataverse OData v9.2 · Azure DevOps Build REST API · Azure DevOps Git REST API |
 | **Security middleware** | Helmet (CSP, HSTS, X-Frame-Options) · CORS lockdown · HttpOnly local sessions · rate limiting · SSRF prevention · path traversal blocking |
-| **Distribution** | `@yao-pkg/pkg` standalone exe · Docker multi-stage build · GitHub Actions CI/CD release pipeline |
+| **Distribution** | Portable Windows bundle with the official Node.js runtime · Docker multi-stage build · GitHub Actions CI/CD |
 | **Data** | JSON scan history · AES-256-GCM encrypted credentials · in-app first-launch setup wizard |
 
 ---
@@ -62,7 +62,7 @@ AI features use the shared Vantage agent configured by your administrator. Provi
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  vantage.exe  (Node.js + Express, self-contained)        │
+│  Portable Vantage bundle (official Node.js runtime)      │
 │                                                          │
 │  ┌──────────────┐    ┌──────────────────────────────┐   │
 │  │  React SPA   │    │  Express API                 │   │
@@ -211,15 +211,17 @@ Branch safety: verifies target branch exists, checks optimizer branch doesn't al
 
 ```
 active-layer-auditor/
-├── vantage.exe               Standalone Windows executable (GitHub Releases)
-├── public/                   Pre-built frontend (served by the exe)
+├── Start Vantage.bat         One-click portable Windows launcher
+├── runtime/node.exe          Official unpacked Node.js Windows runtime
+├── frontend/dist/            Pre-built frontend
+├── backend/dist/             Compiled backend
 ├── Dockerfile                Multi-stage build (frontend → backend → Alpine runtime)
 ├── docker-compose.yml
 ├── Start Vantage.bat         Fallback launcher for Docker / Node.js dev environments
 ├── backend/
 │   └── src/
 │       ├── index.ts          Express server — security middleware, route wiring, static serving
-│       ├── config.ts         Credential load/save/apply, pkg-aware data directory
+│       ├── config.ts         Encrypted credential load/save/apply
 │       ├── auth.ts           MSAL token acquisition, environment URL validation
 │       ├── optimizer.ts      Pipeline optimizer engine (47 rules)
 │       ├── pipelines.ts      Pipeline health aggregation, 22 error pattern matchers
@@ -259,16 +261,16 @@ Backend: http://localhost:3001 · Frontend: http://localhost:5173
 
 The setup wizard works in dev mode and writes encrypted credentials to `data/config.enc.json`. You can also create `backend/.env` from `backend/.env.example` to supply administrator-managed settings.
 
-**Build the standalone exe:**
+**Build the application:**
 ```bash
 cd frontend
 npm run build          # output: frontend/dist/
 
 cd ../backend
 npm run build          # output: backend/dist/
-npm run package        # output: vantage.exe
-# copy frontend/dist → public/ next to vantage.exe before running
 ```
+
+Tagged GitHub releases assemble these outputs with the official Node.js Windows runtime into a portable ZIP.
 
 **Docker:**
 ```bash
@@ -279,7 +281,7 @@ Docker stores credentials, scan history, and audit logs in the persistent `vanta
 
 ### Shared AI agent
 
-The team uses one consistent Vantage AI agent: the same Groq model, prompts, and safety rules for every coworker. An administrator supplies `GROQ_API_KEY` privately through `backend/.env`, a managed environment variable, or a private `.env` beside `vantage.exe`. The key is intentionally excluded from GitHub release archives.
+The team uses one consistent Vantage AI agent: the same Groq model, prompts, and safety rules for every coworker. An administrator supplies `GROQ_API_KEY` privately through `backend/.env`, a managed environment variable, or a private `.env` in the portable release folder. The key is intentionally excluded from GitHub release archives.
 
 Users explicitly enable AI data sharing during setup. Pipeline optimization sends stage names and dependency structure—not credentials or complete YAML files. Flow explanations send only the flow name and error text selected by the user.
 

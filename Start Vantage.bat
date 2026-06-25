@@ -1,5 +1,5 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 title Vantage
 cd /d "%~dp0"
 
@@ -9,94 +9,85 @@ echo   VANTAGE  ^|  Power Platform Engineering Toolkit
 echo   ================================================
 echo.
 
-:: ── 1. Ensure an optional environment file exists ───────────────────────────
-if not exist "backend\.env" (
-    type nul > "backend\.env"
-)
+if exist "runtime\node.exe" goto :portable_release
 
-:: ── 2. Try Docker (preferred — no Node.js install needed) ────────────────────
+if not exist "backend\.env" type nul > "backend\.env"
+
 where docker >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
     docker info >nul 2>&1
     if %ERRORLEVEL% EQU 0 (
         echo   Docker detected. Starting Vantage...
-        echo.
         docker compose up --build -d
-        if %ERRORLEVEL% NEQ 0 goto :node_fallback
-        echo.
-        echo   Vantage is running at http://localhost:3001
-        timeout /t 2 >nul
-        start http://localhost:3001
-        echo.
-        echo   To stop:  docker compose down
-        echo   To view logs:  docker compose logs -f
-        echo.
-        pause
-        exit /b 0
+        if %ERRORLEVEL% EQU 0 (
+            timeout /t 2 >nul
+            start http://127.0.0.1:3001
+            echo.
+            echo   Vantage is running at http://127.0.0.1:3001
+            echo   To stop: docker compose down
+            pause
+            exit /b 0
+        )
     )
 )
 
-:node_fallback
-:: ── 3. Fall back to Node.js ──────────────────────────────────────────────────
 where node >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo   [ERROR] Neither Docker nor Node.js is installed.
-    echo.
-    echo   Option A (recommended): Install Docker Desktop
-    echo     https://www.docker.com/products/docker-desktop
-    echo.
-    echo   Option B: Install Node.js
-    echo     https://nodejs.org
-    echo.
-    start https://www.docker.com/products/docker-desktop
+    echo   [ERROR] This source checkout requires Docker Desktop or Node.js.
     pause
     exit /b 1
 )
 
-echo   Node.js detected. Starting Vantage...
-echo.
-
-:: Install backend deps (first run only)
 if not exist "backend\node_modules" (
-    echo   Installing backend dependencies (first run, ~30 seconds)...
-    pushd backend && call npm install --silent 2>nul && popd
-    echo   Done.
+    pushd backend
+    call npm install
+    popd
 )
-
-:: Install frontend deps (first run only)
 if not exist "frontend\node_modules" (
-    echo   Installing frontend dependencies (first run, ~30 seconds)...
-    pushd frontend && call npm install --silent 2>nul && popd
-    echo   Done.
+    pushd frontend
+    call npm install
+    popd
 )
-
-:: Build frontend (first run only — API key fetched at runtime)
 if not exist "frontend\dist" (
-    echo   Building frontend (first run, ~30 seconds)...
-    (
-        echo VITE_API_URL=
-        echo VITE_API_KEY=
-    ) > "frontend\.env"
-    pushd frontend && call npm run build 2>nul && popd
-    echo   Done.
+    pushd frontend
+    call npm run build
+    popd
 )
-
-:: Build backend (first run only)
 if not exist "backend\dist" (
-    echo   Compiling backend (first run, ~10 seconds)...
-    pushd backend && call npm run build 2>nul && popd
-    echo   Done.
+    pushd backend
+    call npm run build
+    popd
 )
 
-echo.
-echo   Starting Vantage...
-echo   Opening http://localhost:3001 in a few seconds...
-echo   Close this window to stop Vantage.
-echo.
-
-start /B cmd /c "timeout /t 4 >nul && start http://localhost:3001"
-
+set "HOST=127.0.0.1"
+set "PORT=3001"
+start /B cmd /c "timeout /t 3 >nul && start http://127.0.0.1:3001"
 pushd backend
 node dist\index.js
 popd
+exit /b %ERRORLEVEL%
+
+:portable_release
+if not exist ".env" (
+    if exist ".env.example" copy ".env.example" ".env" >nul
+)
+
+set "NODE_ENV=production"
+set "HOST=127.0.0.1"
+set "PORT=3001"
+set "VANTAGE_DATA_DIR=%~dp0data"
+set "VANTAGE_ENV_PATH=%~dp0.env"
+
+echo   Starting the portable release...
+echo   Vantage will open at http://127.0.0.1:3001
+echo   Close this window to stop Vantage.
+echo.
+
+start /B cmd /c "timeout /t 3 >nul && start http://127.0.0.1:3001"
+"%~dp0runtime\node.exe" "%~dp0backend\dist\index.js"
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo   [ERROR] Vantage stopped unexpectedly.
+    pause
+)
