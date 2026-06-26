@@ -1,6 +1,6 @@
 'use strict'
 
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell } = require('electron')
+const { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, shell } = require('electron')
 const path = require('path')
 const net = require('net')
 const fs = require('fs')
@@ -166,6 +166,7 @@ app.on('before-quit', () => {
 })
 
 app.whenReady().then(async () => {
+  nativeTheme.themeSource = 'dark'
   Menu.setApplicationMenu(null)
   startBackend()
   createTray()
