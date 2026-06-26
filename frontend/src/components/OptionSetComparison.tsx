@@ -4,7 +4,7 @@ import { apiFetch } from '../api'
 
 export default function OptionSetComparison() {
   const [compareSourceUrl, setCompareSourceUrl] = useEnvironmentUrl()
-  const [compareTargetUrl, setCompareTargetUrl] = useEnvironmentUrl('ala_target_url')
+  const [compareTargetUrl, setCompareTargetUrl] = useEnvironmentUrl('vtg_target_url')
   const [comparisonResults, setComparisonResults] = useState<any>(null)
   const [isComparing, setIsComparing] = useState(false)
   const [comparisonError, setComparisonError] = useState<string | null>(null)

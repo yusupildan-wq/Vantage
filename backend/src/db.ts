@@ -1,10 +1,9 @@
 import fs from 'fs'
 import path from 'path'
 import { ScanResult } from './types'
+import { getDataDir } from './config'
 
-const DATA_DIR = (process as any).pkg
-  ? path.join(path.dirname(process.execPath), 'data')
-  : path.join(__dirname, '../../data')
+const DATA_DIR = getDataDir()
 const DB_PATH = path.join(DATA_DIR, 'scans.json')
 
 export interface ScanRecord {

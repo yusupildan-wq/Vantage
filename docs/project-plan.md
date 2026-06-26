@@ -1,4 +1,4 @@
-# Active Layer Auditor
+# Vantage
 
 ## Goal
 Detect active-layer customizations before solution export.

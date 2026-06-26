@@ -97,11 +97,11 @@ app.use('/api/audit-log', auditRouter)
 app.use('/api/setup', settingsRouter)
 
 // ── Static frontend ────────────────────────────────────────────────────────
-// pkg exe: frontend lives in public/ next to the exe on the real filesystem.
-// Regular / dev build: frontend lives in ../../frontend/dist.
-const frontendDist = (process as any).pkg
-  ? path.join(path.dirname(process.execPath), 'public')
-  : path.join(__dirname, '../../frontend/dist')
+// Resolution order: env var (set by Electron main process) → pkg exe → dev build.
+const frontendDist = process.env.VANTAGE_FRONTEND_PATH?.trim()
+  || ((process as any).pkg
+    ? path.join(path.dirname(process.execPath), 'public')
+    : path.join(__dirname, '../../frontend/dist'))
 
 if (fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist))

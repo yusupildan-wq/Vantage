@@ -17,7 +17,7 @@ const COMPARE_STEPS = [
 
 export default function ComparisonPage() {
   const [sourceUrl, setSourceUrl] = useEnvironmentUrl()
-  const [targetUrl, setTargetUrl] = useEnvironmentUrl('ala_target_url')
+  const [targetUrl, setTargetUrl] = useEnvironmentUrl('vtg_target_url')
   const [runState, setRunState]   = useState<RunState>('idle')
   const [report, setReport]       = useState<ComparisonReport | null>(null)
   const [error, setError]         = useState<string | null>(null)

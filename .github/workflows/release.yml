@@ -14,6 +14,8 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ github.ref_name }}
 
     steps:
       - uses: actions/checkout@v4
@@ -94,3 +96,49 @@ jobs:
             No Node.js, Docker, installer, or packed executable is required. The release
             contains the official Node.js Windows runtime and normal application files.
             AI features work out of the box — no extra setup needed.
+
+            ### Or install as a desktop app
+            Download **`Vantage-Setup-${{ github.ref_name }}.exe`** for a proper Windows installer
+            with a Start Menu shortcut and system-tray integration.
+
+  electron:
+    runs-on: windows-latest
+    needs: release
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Build backend
+        working-directory: backend
+        shell: bash
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build frontend
+        working-directory: frontend
+        shell: bash
+        run: |
+          npm ci
+          printf 'VITE_API_URL=\nVITE_API_KEY=\n' > .env
+          npm run build
+
+      - name: Package Electron installer
+        working-directory: electron
+        shell: bash
+        run: |
+          npm install
+          npm run dist
+
+      - name: Upload installer to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: electron/dist/*.exe

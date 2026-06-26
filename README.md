@@ -210,7 +210,7 @@ Branch safety: verifies target branch exists, checks optimizer branch doesn't al
 ## Project structure
 
 ```
-active-layer-auditor/
+vantage/
 ├── Start Vantage.bat         One-click portable Windows launcher
 ├── runtime/node.exe          Official unpacked Node.js Windows runtime
 ├── frontend/dist/            Pre-built frontend
