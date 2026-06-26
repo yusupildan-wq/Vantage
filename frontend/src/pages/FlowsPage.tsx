@@ -104,6 +104,25 @@ function FlowCompareSection() {
     }
   }
 
+  function exportCsv() {
+    if (!data) return
+    const rows = [
+      ['Flow Name', 'Status', 'Source', 'Target', "What's Different"],
+      ...data.flows.map(f => [
+        f.name,
+        f.status === 'drift' ? 'Out of Sync' : f.status === 'source_only' ? 'Not Deployed' : f.status === 'target_only' ? 'Target Only' : 'Match',
+        f.source ? (f.source.enabled ? 'On' : 'Off') : '—',
+        f.target ? (f.target.enabled ? 'On' : 'Off') : '—',
+        f.driftReasons.join('; ') || '—',
+      ]),
+    ]
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = `flow-comparison-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+  }
+
   const flows = data?.flows ?? []
   const counts = {
     all:         flows.length,
@@ -197,8 +216,8 @@ function FlowCompareSection() {
             ))}
           </div>
 
-          {/* Filter tabs */}
-          <div className="px-6 py-3 flex flex-wrap gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
+          {/* Filter tabs + export */}
+          <div className="px-6 py-3 flex flex-wrap items-center gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
             {tabs.map(t => (
               <button key={t.key} onClick={() => { setFilter(t.key); setShowAllCompare(false) }}
                 className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
@@ -209,6 +228,13 @@ function FlowCompareSection() {
                 {t.label}
               </button>
             ))}
+            <button onClick={exportCsv}
+              className="ml-auto px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
+              style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-bright)' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#60a5fa'; e.currentTarget.style.borderColor = 'rgba(96,165,250,0.25)' }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border-bright)' }}>
+              Export CSV
+            </button>
           </div>
 
           {/* Table */}
