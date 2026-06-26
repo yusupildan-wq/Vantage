@@ -67,11 +67,28 @@ export interface FlowCompareEntry {
   driftReasons: string[]
 }
 
-async function getFlowList(client: AxiosInstance): Promise<{ name: string; enabled: boolean; modifiedOn: string }[]> {
-  const resp = await client.get(
-    `/workflows?$filter=category eq 5&$select=name,statecode,modifiedon&$orderby=name asc`
+async function getFlowIdsForSolution(client: AxiosInstance, solutionUniqueName: string): Promise<Set<string>> {
+  const solResp = await client.get(
+    `/solutions?$filter=uniquename eq '${solutionUniqueName}'&$select=solutionid`
   )
-  return (resp.data.value ?? []).map((f: any) => ({
+  const solution = solResp.data.value?.[0]
+  if (!solution) throw new Error(`Solution '${solutionUniqueName}' not found in this environment`)
+  const compResp = await client.get(
+    `/solutioncomponents?$filter=_solutionid_value eq ${solution.solutionid} and componenttype eq 29&$select=objectid`
+  )
+  return new Set((compResp.data.value ?? []).map((c: any) => c.objectid as string))
+}
+
+async function getFlowList(
+  client: AxiosInstance,
+  solutionFlowIds?: Set<string>
+): Promise<{ name: string; enabled: boolean; modifiedOn: string }[]> {
+  const resp = await client.get(
+    `/workflows?$filter=category eq 5&$select=workflowid,name,statecode,modifiedon&$orderby=name asc`
+  )
+  let flows: any[] = resp.data.value ?? []
+  if (solutionFlowIds) flows = flows.filter(f => solutionFlowIds.has(f.workflowid))
+  return flows.map((f: any) => ({
     name: f.name,
     enabled: f.statecode === 1,
     modifiedOn: f.modifiedon,
@@ -80,11 +97,20 @@ async function getFlowList(client: AxiosInstance): Promise<{ name: string; enabl
 
 export async function compareFlows(
   sourceClient: AxiosInstance,
-  targetClient: AxiosInstance
+  targetClient: AxiosInstance,
+  solutionUniqueName?: string
 ): Promise<FlowCompareEntry[]> {
+  let sourceFlowIds: Set<string> | undefined
+  let targetFlowIds: Set<string> | undefined
+  if (solutionUniqueName) {
+    ;[sourceFlowIds, targetFlowIds] = await Promise.all([
+      getFlowIdsForSolution(sourceClient, solutionUniqueName),
+      getFlowIdsForSolution(targetClient, solutionUniqueName),
+    ])
+  }
   const [sourceFlows, targetFlows] = await Promise.all([
-    getFlowList(sourceClient),
-    getFlowList(targetClient),
+    getFlowList(sourceClient, sourceFlowIds),
+    getFlowList(targetClient, targetFlowIds),
   ])
 
   const sourceMap = new Map(sourceFlows.map(f => [f.name.trim().toLowerCase(), f]))
@@ -129,12 +155,15 @@ export async function compareFlows(
   })
 }
 
-export async function getFlowHealth(client: AxiosInstance): Promise<FlowHealth[]> {
-  // Fetch all modern cloud flows (category 5)
+export async function getFlowHealth(client: AxiosInstance, solutionUniqueName?: string): Promise<FlowHealth[]> {
   const flowsResp = await client.get(
     `/workflows?$filter=category eq 5&$select=workflowid,name,statecode,modifiedon,_ownerid_value&$orderby=name asc`
   )
-  const flows: any[] = flowsResp.data.value ?? []
+  let flows: any[] = flowsResp.data.value ?? []
+  if (solutionUniqueName) {
+    const ids = await getFlowIdsForSolution(client, solutionUniqueName)
+    flows = flows.filter(f => ids.has(f.workflowid))
+  }
   if (flows.length === 0) return []
 
   // Fetch recent run sessions across all flows in one call

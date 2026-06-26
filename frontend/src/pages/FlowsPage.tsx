@@ -72,9 +72,63 @@ function EnabledPill({ enabled }: { enabled: boolean }) {
     : <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: '#94a3b8', backgroundColor: 'rgba(148,163,184,0.07)', border: '1px solid rgba(148,163,184,0.2)' }}>Off</span>
 }
 
+interface Solution { uniqueName: string; displayName: string; isManaged: boolean; flowCount: number }
+
+function SolutionPicker({ envUrl, value, onChange }: {
+  envUrl: string; value: string; onChange: (v: string) => void
+}) {
+  const [solutions, setSolutions] = useState<Solution[]>([])
+  const [loading, setLoading]     = useState(false)
+  const [loaded, setLoaded]       = useState(false)
+  const [err, setErr]             = useState<string | null>(null)
+
+  async function loadSolutions() {
+    const url = envUrl.trim()
+    if (!url) return
+    setLoading(true); setErr(null)
+    try {
+      const resp = await apiFetch(`${API_URL}/api/flows/solutions?environmentUrl=${encodeURIComponent(url)}`)
+      const json = await resp.json()
+      if (!resp.ok) throw new Error(json.error ?? 'Failed')
+      setSolutions(json.solutions ?? [])
+      setLoaded(true)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to load solutions')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div>
+      <label className="block text-xs font-medium tracking-wider uppercase mb-2" style={{ color: 'var(--text-secondary)' }}>
+        Filter by Solution{' '}
+        <span style={{ textTransform: 'none', fontWeight: 400, fontSize: '0.7rem', color: 'var(--text-muted)' }}>(optional)</span>
+      </label>
+      <div className="flex items-center gap-2">
+        {loaded && (
+          <select value={value} onChange={e => onChange(e.target.value)}
+            className="flex-1 rounded-lg px-3 py-2 text-sm focus:outline-none"
+            style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', color: 'var(--text-primary)' }}>
+            <option value="">— All flows —</option>
+            {solutions.map(s => <option key={s.uniqueName} value={s.uniqueName}>{s.displayName} ({s.flowCount} flow{s.flowCount !== 1 ? 's' : ''})</option>)}
+          </select>
+        )}
+        <button type="button" onClick={loadSolutions} disabled={!envUrl.trim() || loading}
+          className="text-xs px-3 py-2 rounded-lg transition-all disabled:opacity-30 whitespace-nowrap"
+          style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', color: 'var(--text-secondary)' }}>
+          {loading ? 'Loading…' : loaded ? '↻ Reload' : 'Load Solutions'}
+        </button>
+      </div>
+      {err && <p className="mt-1 text-xs" style={{ color: '#f87171' }}>{err}</p>}
+    </div>
+  )
+}
+
 function FlowCompareSection() {
   const [sourceUrl, setSourceUrl]       = useState('')
   const [targetUrl, setTargetUrl]       = useState('')
+  const [solutionName, setSolutionName] = useState('')
   const [isLoading, setIsLoading]       = useState(false)
   const [error, setError]               = useState<string | null>(null)
   const [data, setData]                 = useState<FlowCompareResponse | null>(null)
@@ -89,7 +143,9 @@ function FlowCompareSection() {
     try {
       let resp: Response
       try {
-        resp = await apiFetch(`${API_URL}/api/flows/compare?sourceUrl=${encodeURIComponent(sourceUrl.trim())}&targetUrl=${encodeURIComponent(targetUrl.trim())}`)
+        const params = new URLSearchParams({ sourceUrl: sourceUrl.trim(), targetUrl: targetUrl.trim() })
+        if (solutionName) params.set('solutionName', solutionName)
+        resp = await apiFetch(`${API_URL}/api/flows/compare?${params}`)
       } catch {
         setError(`Cannot reach the backend server at ${API_URL}. Make sure the backend is running.`)
         return
@@ -178,6 +234,7 @@ function FlowCompareSection() {
                 onBlur={e =>  { e.currentTarget.style.borderColor = 'var(--border-mid)'; e.currentTarget.style.boxShadow = 'none' }} />
             </div>
           </div>
+          <SolutionPicker envUrl={sourceUrl} value={solutionName} onChange={setSolutionName} />
           <button type="submit" disabled={isLoading || !sourceUrl.trim() || !targetUrl.trim()}
             className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
             style={{ backgroundColor: '#1d4ed8', boxShadow: '0 0 20px rgba(29,78,216,0.3)' }}
@@ -1213,15 +1270,16 @@ function ConnectionRefSection() {
 export default function FlowsPage() {
   const [inputUrl, setInputUrl]   = useEnvironmentUrl()
 
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError]         = useState<string | null>(null)
-  const [data, setData]           = useState<FlowHealthResponse | null>(null)
-  const [filter, setFilter]       = useState<FilterTab>('all')
-  const [showAll, setShowAll]     = useState(false)
-  const [search, setSearch]       = useState('')
-  const [scannedAt, setScannedAt] = useState<Date | null>(null)
+  const [isLoading, setIsLoading]     = useState(false)
+  const [error, setError]             = useState<string | null>(null)
+  const [data, setData]               = useState<FlowHealthResponse | null>(null)
+  const [filter, setFilter]           = useState<FilterTab>('all')
+  const [showAll, setShowAll]         = useState(false)
+  const [search, setSearch]           = useState('')
+  const [scannedAt, setScannedAt]     = useState<Date | null>(null)
+  const [solutionName, setSolutionName] = useState('')
 
-  async function fetchFlows(url: string) {
+  async function fetchFlows(url: string, solName?: string) {
     setIsLoading(true)
     setError(null)
     setData(null)
@@ -1229,7 +1287,9 @@ export default function FlowsPage() {
     try {
       let resp: Response
       try {
-        resp = await apiFetch(`${API_URL}/api/flows/health?environmentUrl=${encodeURIComponent(url)}`)
+        const params = new URLSearchParams({ environmentUrl: url })
+        if (solName) params.set('solutionName', solName)
+        resp = await apiFetch(`${API_URL}/api/flows/health?${params}`)
       } catch {
         setError(`Cannot reach the backend server at ${API_URL}. Make sure the backend is running (cd backend, then npm run dev).`)
         return
@@ -1247,7 +1307,7 @@ export default function FlowsPage() {
 
   function handleCheck(e: React.FormEvent) {
     e.preventDefault()
-    fetchFlows(inputUrl.trim())
+    fetchFlows(inputUrl.trim(), solutionName || undefined)
   }
 
   const flows = data?.flows ?? []
@@ -1349,6 +1409,7 @@ export default function FlowsPage() {
                   </button>
                 </div>
               </div>
+              <SolutionPicker envUrl={inputUrl} value={solutionName} onChange={setSolutionName} />
             </div>
           </form>
 

@@ -6,6 +6,45 @@ import { explainFlowError } from '../ai'
 
 export const flowsRouter = Router()
 
+// GET /api/flows/solutions
+flowsRouter.get('/solutions', async (req: Request, res: Response) => {
+  const { environmentUrl } = req.query
+  if (!environmentUrl || typeof environmentUrl !== 'string') {
+    res.status(400).json({ error: 'environmentUrl query param is required' }); return
+  }
+  try { validateEnvironmentUrl(environmentUrl) } catch (e) {
+    res.status(400).json({ error: (e as Error).message }); return
+  }
+  try {
+    const client = await makeDataverseClient(environmentUrl)
+    const [solResp, compResp] = await Promise.all([
+      client.get(`/solutions?$select=solutionid,uniquename,friendlyname,ismanaged&$orderby=friendlyname asc`),
+      client.get(`/solutioncomponents?$filter=componenttype eq 29&$select=objectid,_solutionid_value`),
+    ])
+    const flowCountBySolution = new Map<string, number>()
+    for (const c of (compResp.data.value ?? [])) {
+      const sid = c['_solutionid_value']
+      if (sid) flowCountBySolution.set(sid, (flowCountBySolution.get(sid) ?? 0) + 1)
+    }
+    const solutions = (solResp.data.value ?? [])
+      .filter((s: any) => s.uniquename !== 'Default' && s.uniquename !== 'Active')
+      .map((s: any) => ({
+        uniqueName: s.uniquename,
+        displayName: s.friendlyname,
+        isManaged: s.ismanaged,
+        flowCount: flowCountBySolution.get(s.solutionid) ?? 0,
+      }))
+      .filter((s: any) => s.flowCount > 0)
+      .sort((a: any, b: any) => b.flowCount - a.flowCount)
+    res.json({ solutions })
+  } catch (err) {
+    const detail = axios.isAxiosError(err)
+      ? (err.response?.data?.error?.message ?? err.message)
+      : (err instanceof Error ? err.message : 'Failed')
+    res.status(500).json({ error: detail })
+  }
+})
+
 // POST /api/flows/explain-error
 flowsRouter.post('/explain-error', async (req: Request, res: Response) => {
   const { flowName, errorMessage } = req.body
@@ -22,7 +61,7 @@ flowsRouter.post('/explain-error', async (req: Request, res: Response) => {
 })
 
 flowsRouter.get('/compare', async (req: Request, res: Response) => {
-  const { sourceUrl, targetUrl } = req.query
+  const { sourceUrl, targetUrl, solutionName } = req.query
   if (!sourceUrl || !targetUrl || typeof sourceUrl !== 'string' || typeof targetUrl !== 'string') {
     res.status(400).json({ error: 'sourceUrl and targetUrl query params are required' })
     return
@@ -35,7 +74,8 @@ flowsRouter.get('/compare', async (req: Request, res: Response) => {
       makeDataverseClient(sourceUrl),
       makeDataverseClient(targetUrl),
     ])
-    const flows = await compareFlows(sourceClient, targetClient)
+    const solName = typeof solutionName === 'string' && solutionName ? solutionName : undefined
+    const flows = await compareFlows(sourceClient, targetClient, solName)
     res.json({ sourceUrl, targetUrl, totalFlows: flows.length, flows })
   } catch (err) {
     const detail = axios.isAxiosError(err)
@@ -46,7 +86,7 @@ flowsRouter.get('/compare', async (req: Request, res: Response) => {
 })
 
 flowsRouter.get('/health', async (req: Request, res: Response) => {
-  const { environmentUrl } = req.query
+  const { environmentUrl, solutionName } = req.query
   if (!environmentUrl || typeof environmentUrl !== 'string') {
     res.status(400).json({ error: 'environmentUrl query param is required' })
     return
@@ -56,7 +96,8 @@ flowsRouter.get('/health', async (req: Request, res: Response) => {
   }
   try {
     const client = await makeDataverseClient(environmentUrl)
-    const flows = await getFlowHealth(client)
+    const solName = typeof solutionName === 'string' && solutionName ? solutionName : undefined
+    const flows = await getFlowHealth(client, solName)
     res.json({ environmentUrl, totalFlows: flows.length, flows })
   } catch (err) {
     const detail = axios.isAxiosError(err)
