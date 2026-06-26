@@ -69,7 +69,7 @@ export interface FlowCompareEntry {
 
 async function getFlowList(client: AxiosInstance): Promise<{ name: string; enabled: boolean; modifiedOn: string }[]> {
   const resp = await client.get(
-    `/workflows?$filter=category eq 5&$select=name,statecode,modifiedon&$orderby=name asc`
+    `/workflows?$filter=category eq 5 and ismanaged eq false&$select=name,statecode,modifiedon&$orderby=name asc`
   )
   return (resp.data.value ?? []).map((f: any) => ({
     name: f.name,
@@ -132,7 +132,7 @@ export async function compareFlows(
 export async function getFlowHealth(client: AxiosInstance): Promise<FlowHealth[]> {
   // Fetch all modern cloud flows (category 5)
   const flowsResp = await client.get(
-    `/workflows?$filter=category eq 5&$select=workflowid,name,statecode,modifiedon,_ownerid_value&$orderby=name asc`
+    `/workflows?$filter=category eq 5 and ismanaged eq false&$select=workflowid,name,statecode,modifiedon,_ownerid_value&$orderby=name asc`
   )
   const flows: any[] = flowsResp.data.value ?? []
   if (flows.length === 0) return []
