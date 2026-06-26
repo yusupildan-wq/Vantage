@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import axios from 'axios'
 import { makeDataverseClient, validateEnvironmentUrl } from '../auth'
-import { getFlowHealth, compareFlows } from '../flows'
+import { getFlowHealth, compareFlows, fetchAllPages } from '../flows'
 import { explainFlowError } from '../ai'
 
 export const flowsRouter = Router()
@@ -17,14 +17,14 @@ flowsRouter.get('/solutions', async (req: Request, res: Response) => {
   }
   try {
     const client = await makeDataverseClient(environmentUrl)
-    const [solResp, compResp] = await Promise.all([
+    const [solResp, components] = await Promise.all([
       client.get(`/solutions?$select=solutionid,uniquename,friendlyname,ismanaged&$orderby=friendlyname asc`),
-      client.get(`/solutioncomponents?$filter=componenttype eq 29&$select=objectid,_solutionid_value`),
+      fetchAllPages(client, `/solutioncomponents?$filter=componenttype eq 29&$select=objectid,_solutionid_value`),
     ])
     const flowCountBySolution = new Map<string, number>()
-    for (const c of (compResp.data.value ?? [])) {
+    for (const c of components) {
       const sid = c['_solutionid_value']
-      if (sid) flowCountBySolution.set(sid, (flowCountBySolution.get(sid) ?? 0) + 1)
+      if (sid) flowCountBySolution.set(sid.toLowerCase(), (flowCountBySolution.get(sid.toLowerCase()) ?? 0) + 1)
     }
     const solutions = (solResp.data.value ?? [])
       .filter((s: any) => s.uniquename !== 'Default' && s.uniquename !== 'Active')
@@ -32,7 +32,7 @@ flowsRouter.get('/solutions', async (req: Request, res: Response) => {
         uniqueName: s.uniquename,
         displayName: s.friendlyname,
         isManaged: s.ismanaged,
-        flowCount: flowCountBySolution.get(s.solutionid) ?? 0,
+        flowCount: flowCountBySolution.get((s.solutionid as string).toLowerCase()) ?? 0,
       }))
       .filter((s: any) => s.flowCount > 0)
       .sort((a: any, b: any) => b.flowCount - a.flowCount)

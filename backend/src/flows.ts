@@ -1,4 +1,15 @@
-import { AxiosInstance } from 'axios'
+import { AxiosInstance, AxiosResponse } from 'axios'
+
+export async function fetchAllPages(client: AxiosInstance, url: string): Promise<any[]> {
+  const results: any[] = []
+  let next: string | null = url
+  while (next) {
+    const resp: AxiosResponse = await client.get(next)
+    results.push(...(resp.data.value ?? []))
+    next = (resp.data['@odata.nextLink'] as string | undefined) ?? null
+  }
+  return results
+}
 
 export type FlowRunStatus = 'succeeded' | 'failed' | 'running' | 'cancelled' | 'waiting'
 
@@ -73,22 +84,32 @@ async function getFlowIdsForSolution(client: AxiosInstance, solutionUniqueName: 
   )
   const solution = solResp.data.value?.[0]
   if (!solution) throw new Error(`Solution '${solutionUniqueName}' not found in this environment`)
-  const compResp = await client.get(
-    `/solutioncomponents?$filter=_solutionid_value eq ${solution.solutionid} and componenttype eq 29&$select=objectid`
+  const solutionId = (solution.solutionid as string).toLowerCase()
+  // Fetch all pages of workflow-type components and filter in JS — OData filter on
+  // _solutionid_value is unreliable across Dataverse environments.
+  const components = await fetchAllPages(
+    client,
+    `/solutioncomponents?$filter=componenttype eq 29&$select=objectid,_solutionid_value`
   )
-  return new Set((compResp.data.value ?? []).map((c: any) => (c.objectid as string).toLowerCase()))
+  return new Set(
+    components
+      .filter((c: any) => ((c['_solutionid_value'] as string) ?? '').toLowerCase() === solutionId)
+      .map((c: any) => (c.objectid as string).toLowerCase())
+  )
 }
 
 async function getFlowList(
   client: AxiosInstance,
   solutionFlowIds?: Set<string>
 ): Promise<{ name: string; enabled: boolean; modifiedOn: string }[]> {
-  const resp = await client.get(
+  const flows = await fetchAllPages(
+    client,
     `/workflows?$filter=category eq 5&$select=workflowid,name,statecode,modifiedon&$orderby=name asc`
   )
-  let flows: any[] = resp.data.value ?? []
-  if (solutionFlowIds) flows = flows.filter(f => solutionFlowIds.has(f.workflowid.toLowerCase()))
-  return flows.map((f: any) => ({
+  const filtered = solutionFlowIds
+    ? flows.filter((f: any) => solutionFlowIds.has(f.workflowid.toLowerCase()))
+    : flows
+  return filtered.map((f: any) => ({
     name: f.name,
     enabled: f.statecode === 1,
     modifiedOn: f.modifiedon,
@@ -156,13 +177,13 @@ export async function compareFlows(
 }
 
 export async function getFlowHealth(client: AxiosInstance, solutionUniqueName?: string): Promise<FlowHealth[]> {
-  const flowsResp = await client.get(
+  let flows = await fetchAllPages(
+    client,
     `/workflows?$filter=category eq 5&$select=workflowid,name,statecode,modifiedon,_ownerid_value&$orderby=name asc`
   )
-  let flows: any[] = flowsResp.data.value ?? []
   if (solutionUniqueName) {
     const ids = await getFlowIdsForSolution(client, solutionUniqueName)
-    flows = flows.filter(f => ids.has(f.workflowid.toLowerCase()))
+    flows = flows.filter((f: any) => ids.has(f.workflowid.toLowerCase()))
   }
   if (flows.length === 0) return []
 
