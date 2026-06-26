@@ -5,7 +5,7 @@ import { apiFetch } from '../api'
 import ConfirmActionDialog from '../components/ConfirmActionDialog'
 
 type FlowCompareStatus = 'match' | 'drift' | 'source_only' | 'target_only'
-type CompareFilter = 'all' | 'drift' | 'source_only' | 'target_only' | 'match'
+type CompareFilter = 'all' | 'drift' | 'state_mismatch' | 'source_only' | 'target_only' | 'match'
 type ConnRefFilter = 'all' | 'broken' | 'high_risk' | 'healthy'
 type ConnRefRisk = 'critical' | 'high' | 'medium' | 'low'
 
@@ -165,6 +165,7 @@ function FlowCompareSection() {
     const statusLabel: Record<CompareFilter, string> = {
       all: 'All',
       drift: 'Out of Sync',
+      state_mismatch: 'State Mismatch',
       source_only: 'Not Deployed',
       target_only: 'Target Only',
       match: 'Match',
@@ -172,6 +173,7 @@ function FlowCompareSection() {
     const statusSlug: Record<CompareFilter, string> = {
       all: 'all',
       drift: 'out-of-sync',
+      state_mismatch: 'state-mismatch',
       source_only: 'not-deployed',
       target_only: 'target-only',
       match: 'match',
@@ -198,15 +200,21 @@ function FlowCompareSection() {
   const counts = {
     all:         flows.length,
     drift:       flows.filter(f => f.status === 'drift').length,
+    state_mismatch: flows.filter(f => f.source && f.target && f.source.enabled !== f.target.enabled).length,
     source_only: flows.filter(f => f.status === 'source_only').length,
     target_only: flows.filter(f => f.status === 'target_only').length,
     match:       flows.filter(f => f.status === 'match').length,
   }
-  const filtered = filter === 'all' ? flows : flows.filter(f => f.status === filter)
+  const filtered = filter === 'all'
+    ? flows
+    : filter === 'state_mismatch'
+      ? flows.filter(f => f.source && f.target && f.source.enabled !== f.target.enabled)
+      : flows.filter(f => f.status === filter)
 
   const tabs: { key: CompareFilter; label: string }[] = [
     { key: 'all',         label: `All (${counts.all})` },
     { key: 'drift',       label: `Out of Sync (${counts.drift})` },
+    { key: 'state_mismatch', label: `State Mismatch (${counts.state_mismatch})` },
     { key: 'source_only', label: `Not Deployed (${counts.source_only})` },
     { key: 'target_only', label: `Target Only (${counts.target_only})` },
     { key: 'match',       label: `Match (${counts.match})` },
