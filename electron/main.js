@@ -1,6 +1,7 @@
 'use strict'
 
-const { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, shell } = require('electron')
+const { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, shell, Notification } = require('electron')
+const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const net = require('net')
 const fs = require('fs')
@@ -10,6 +11,7 @@ const BACKEND_URL = `http://127.0.0.1:${PORT}`
 
 let mainWindow = null
 let tray = null
+let updateReady = false
 
 // Poll until the backend HTTP port accepts connections.
 function waitForBackend(timeoutMs = 20000) {
@@ -53,6 +55,30 @@ function startBackend() {
   require(entry)
 }
 
+// ── Auto-update ───────────────────────────────────────────────────────────────
+
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+
+  autoUpdater.on('update-downloaded', () => {
+    updateReady = true
+    rebuildTrayMenu()
+    new Notification({
+      title: 'Vantage update ready',
+      body: 'Right-click the tray icon and choose "Restart to Update".',
+    }).show()
+  })
+
+  autoUpdater.on('error', (err) => {
+    console.error('[updater]', err.message)
+  })
+
+  // Check on startup, then every 4 hours.
+  autoUpdater.checkForUpdates().catch(() => {})
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 4 * 60 * 60 * 1000)
+}
+
 // ── Tray ──────────────────────────────────────────────────────────────────────
 
 function createTray() {
@@ -80,29 +106,43 @@ function createTray() {
 function rebuildTrayMenu() {
   if (!tray) return
   const launchAtLogin = app.getLoginItemSettings().openAtLogin
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: 'Open Vantage', click: showWindow },
-      { type: 'separator' },
-      {
-        label: 'Launch at startup',
-        type: 'checkbox',
-        checked: launchAtLogin,
-        click: (item) => {
-          app.setLoginItemSettings({ openAtLogin: item.checked })
-          rebuildTrayMenu()
-        },
+  const items = [
+    { label: 'Open Vantage', click: showWindow },
+    { type: 'separator' },
+  ]
+
+  if (updateReady) {
+    items.push({
+      label: '↻ Restart to Update',
+      click: () => {
+        app.isQuitting = true
+        autoUpdater.quitAndInstall()
       },
-      { type: 'separator' },
-      {
-        label: 'Quit',
-        click: () => {
-          app.isQuitting = true
-          app.quit()
-        },
+    })
+    items.push({ type: 'separator' })
+  }
+
+  items.push(
+    {
+      label: 'Launch at startup',
+      type: 'checkbox',
+      checked: launchAtLogin,
+      click: (item) => {
+        app.setLoginItemSettings({ openAtLogin: item.checked })
+        rebuildTrayMenu()
       },
-    ])
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        app.isQuitting = true
+        app.quit()
+      },
+    }
   )
+
+  tray.setContextMenu(Menu.buildFromTemplate(items))
 }
 
 // ── Window ────────────────────────────────────────────────────────────────────
@@ -179,6 +219,11 @@ app.whenReady().then(async () => {
   }
 
   createWindow()
+
+  // Check for updates only in the packaged app, not during development.
+  if (app.isPackaged) {
+    setupAutoUpdater()
+  }
 })
 
 // Keep the process alive via the tray; never quit on window-all-closed.
