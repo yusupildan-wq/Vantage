@@ -162,9 +162,23 @@ function FlowCompareSection() {
 
   function exportCsv() {
     if (!data) return
+    const statusLabel: Record<CompareFilter, string> = {
+      all: 'All',
+      drift: 'Out of Sync',
+      source_only: 'Not Deployed',
+      target_only: 'Target Only',
+      match: 'Match',
+    }
+    const statusSlug: Record<CompareFilter, string> = {
+      all: 'all',
+      drift: 'out-of-sync',
+      source_only: 'not-deployed',
+      target_only: 'target-only',
+      match: 'match',
+    }
     const rows = [
       ['Flow Name', 'Status', 'Source', 'Target', "What's Different"],
-      ...data.flows.map(f => [
+      ...filtered.map(f => [
         f.name,
         f.status === 'drift' ? 'Out of Sync' : f.status === 'source_only' ? 'Not Deployed' : f.status === 'target_only' ? 'Target Only' : 'Match',
         f.source ? (f.source.enabled ? 'On' : 'Off') : '—',
@@ -175,7 +189,8 @@ function FlowCompareSection() {
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    a.download = `flow-comparison-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `flow-comparison-${statusSlug[filter]}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.title = `Export ${statusLabel[filter]} flows`
     a.click()
   }
 
@@ -286,11 +301,12 @@ function FlowCompareSection() {
               </button>
             ))}
             <button onClick={exportCsv}
-              className="ml-auto px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
+              disabled={filtered.length === 0}
+              className="ml-auto px-3 py-1.5 text-xs font-medium rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed"
               style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-bright)' }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#60a5fa'; e.currentTarget.style.borderColor = 'rgba(96,165,250,0.25)' }}
+              onMouseEnter={e => { if (!e.currentTarget.disabled) { e.currentTarget.style.color = '#60a5fa'; e.currentTarget.style.borderColor = 'rgba(96,165,250,0.25)' } }}
               onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border-bright)' }}>
-              Export CSV
+              Export {filter === 'all' ? 'CSV' : 'Filtered CSV'}
             </button>
           </div>
 
