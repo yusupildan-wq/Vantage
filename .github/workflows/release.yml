@@ -136,6 +136,7 @@ jobs:
         shell: bash
         run: |
           npm install
+          npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version
           npm run dist
 
       - name: Upload installer to release
