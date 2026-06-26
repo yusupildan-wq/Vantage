@@ -76,7 +76,7 @@ async function getFlowIdsForSolution(client: AxiosInstance, solutionUniqueName: 
   const compResp = await client.get(
     `/solutioncomponents?$filter=_solutionid_value eq ${solution.solutionid} and componenttype eq 29&$select=objectid`
   )
-  return new Set((compResp.data.value ?? []).map((c: any) => c.objectid as string))
+  return new Set((compResp.data.value ?? []).map((c: any) => (c.objectid as string).toLowerCase()))
 }
 
 async function getFlowList(
@@ -87,7 +87,7 @@ async function getFlowList(
     `/workflows?$filter=category eq 5&$select=workflowid,name,statecode,modifiedon&$orderby=name asc`
   )
   let flows: any[] = resp.data.value ?? []
-  if (solutionFlowIds) flows = flows.filter(f => solutionFlowIds.has(f.workflowid))
+  if (solutionFlowIds) flows = flows.filter(f => solutionFlowIds.has(f.workflowid.toLowerCase()))
   return flows.map((f: any) => ({
     name: f.name,
     enabled: f.statecode === 1,
@@ -162,7 +162,7 @@ export async function getFlowHealth(client: AxiosInstance, solutionUniqueName?: 
   let flows: any[] = flowsResp.data.value ?? []
   if (solutionUniqueName) {
     const ids = await getFlowIdsForSolution(client, solutionUniqueName)
-    flows = flows.filter(f => ids.has(f.workflowid))
+    flows = flows.filter(f => ids.has(f.workflowid.toLowerCase()))
   }
   if (flows.length === 0) return []
 
