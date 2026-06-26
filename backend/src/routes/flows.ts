@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import axios from 'axios'
 import { makeDataverseClient, validateEnvironmentUrl } from '../auth'
-import { getFlowHealth, compareFlows, fetchAllPages } from '../flows'
+import { getFlowHealth, compareFlows, fetchAllPages, normalizeDataverseId } from '../flows'
 import { explainFlowError } from '../ai'
 
 export const flowsRouter = Router()
@@ -17,14 +17,24 @@ flowsRouter.get('/solutions', async (req: Request, res: Response) => {
   }
   try {
     const client = await makeDataverseClient(environmentUrl)
-    const [solResp, components] = await Promise.all([
+    const [solResp, components, flows] = await Promise.all([
       client.get(`/solutions?$select=solutionid,uniquename,friendlyname,ismanaged&$orderby=friendlyname asc`),
       fetchAllPages(client, `/solutioncomponents?$filter=componenttype eq 29&$select=objectid,_solutionid_value`),
+      fetchAllPages(client, `/workflows?$filter=category eq 5&$select=workflowid,workflowidunique`),
     ])
+    const cloudFlowIds = new Set<string>()
+    for (const f of flows) {
+      const workflowId = normalizeDataverseId(f.workflowid)
+      const uniqueId = normalizeDataverseId(f.workflowidunique)
+      if (workflowId) cloudFlowIds.add(workflowId)
+      if (uniqueId) cloudFlowIds.add(uniqueId)
+    }
     const flowCountBySolution = new Map<string, number>()
     for (const c of components) {
-      const sid = c['_solutionid_value']
-      if (sid) flowCountBySolution.set(sid.toLowerCase(), (flowCountBySolution.get(sid.toLowerCase()) ?? 0) + 1)
+      const objectId = normalizeDataverseId(c.objectid)
+      if (!cloudFlowIds.has(objectId)) continue
+      const sid = normalizeDataverseId(c['_solutionid_value'])
+      if (sid) flowCountBySolution.set(sid, (flowCountBySolution.get(sid) ?? 0) + 1)
     }
     const solutions = (solResp.data.value ?? [])
       .filter((s: any) => s.uniquename !== 'Default' && s.uniquename !== 'Active')
@@ -32,7 +42,7 @@ flowsRouter.get('/solutions', async (req: Request, res: Response) => {
         uniqueName: s.uniquename,
         displayName: s.friendlyname,
         isManaged: s.ismanaged,
-        flowCount: flowCountBySolution.get((s.solutionid as string).toLowerCase()) ?? 0,
+        flowCount: flowCountBySolution.get(normalizeDataverseId(s.solutionid)) ?? 0,
       }))
       .filter((s: any) => s.flowCount > 0)
       .sort((a: any, b: any) => b.flowCount - a.flowCount)

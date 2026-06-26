@@ -59,7 +59,7 @@ function CompareStatusBadge({ status }: { status: FlowCompareStatus }) {
   }
   const c = cfg[status]
   return (
-    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+    <span className="inline-flex items-center justify-center whitespace-nowrap text-xs px-2.5 py-1 rounded-full font-semibold leading-none"
       style={{ color: c.color, backgroundColor: c.bg, border: `1px solid ${c.border}` }}>
       {c.label}
     </span>
@@ -68,8 +68,8 @@ function CompareStatusBadge({ status }: { status: FlowCompareStatus }) {
 
 function EnabledPill({ enabled }: { enabled: boolean }) {
   return enabled
-    ? <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: '#4ade80', backgroundColor: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)' }}>On</span>
-    : <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: '#94a3b8', backgroundColor: 'rgba(148,163,184,0.07)', border: '1px solid rgba(148,163,184,0.2)' }}>Off</span>
+    ? <span className="inline-flex min-w-12 items-center justify-center whitespace-nowrap text-xs px-2.5 py-1 rounded-full font-semibold leading-none" style={{ color: '#4ade80', backgroundColor: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)' }}>On</span>
+    : <span className="inline-flex min-w-12 items-center justify-center whitespace-nowrap text-xs px-2.5 py-1 rounded-full font-semibold leading-none" style={{ color: '#94a3b8', backgroundColor: 'rgba(148,163,184,0.07)', border: '1px solid rgba(148,163,184,0.2)' }}>Off</span>
 }
 
 interface Solution { uniqueName: string; displayName: string; isManaged: boolean; flowCount: number }
@@ -299,7 +299,14 @@ function FlowCompareSection() {
             <p className="px-6 py-8 text-sm text-center" style={{ color: 'var(--text-muted)' }}>No flows match this filter.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="text-xs" style={{ width: '100%', tableLayout: 'fixed' }}>
+                <colgroup>
+                  <col style={{ width: '42%' }} />
+                  <col style={{ width: '8.5rem' }} />
+                  <col style={{ width: '6rem' }} />
+                  <col style={{ width: '6rem' }} />
+                  <col style={{ width: 'auto' }} />
+                </colgroup>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
                     {["Flow Name", "Status", "Source", "Target", "What's Different"].map((h, i) => (
@@ -312,14 +319,14 @@ function FlowCompareSection() {
                   {filtered.slice(0, showAllCompare ? undefined : 10).map((flow, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{flow.name}</td>
-                      <td className="px-4 py-3"><CompareStatusBadge status={flow.status} /></td>
+                      <td className="px-4 py-3 align-middle"><CompareStatusBadge status={flow.status} /></td>
                       <td className="px-4 py-3">
                         {flow.source ? <EnabledPill enabled={flow.source.enabled} /> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                       </td>
                       <td className="px-4 py-3">
                         {flow.target ? <EnabledPill enabled={flow.target.enabled} /> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                       </td>
-                      <td className="px-4 py-3" style={{ color: flow.driftReasons.length > 0 ? '#fbbf24' : 'var(--text-muted)' }}>
+                      <td className="px-4 py-3 break-words" style={{ color: flow.driftReasons.length > 0 ? '#fbbf24' : 'var(--text-muted)' }}>
                         {flow.driftReasons.join(' · ') || '—'}
                       </td>
                     </tr>
@@ -398,7 +405,7 @@ function RunStatusBadge({ status }: { status: FlowRunStatus }) {
   }
   const c = cfg[status]
   return (
-    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+    <span className="inline-flex items-center justify-center whitespace-nowrap text-xs px-2.5 py-1 rounded-full font-semibold leading-none"
       style={{ color: c.color, backgroundColor: c.bg, border: `1px solid ${c.border}` }}>
       {c.label}
     </span>
@@ -414,20 +421,20 @@ function TriggerHealthBadge({ triggerHealth, daysSinceLastRun, enabled }: {
 }) {
   if (!enabled) return <span style={{ color: 'var(--text-muted)' }}>—</span>
   if (triggerHealth === 'ok') return (
-    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+    <span className="inline-flex items-center justify-center whitespace-nowrap text-xs px-2.5 py-1 rounded-full font-semibold leading-none"
       style={{ color: '#4ade80', backgroundColor: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)' }}>
       Active
     </span>
   )
   if (triggerHealth === 'stale') return (
-    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+    <span className="inline-flex items-center justify-center whitespace-nowrap text-xs px-2.5 py-1 rounded-full font-semibold leading-none"
       style={{ color: '#fbbf24', backgroundColor: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)' }}
       title="Flow is enabled but hasn't run in over 7 days — the trigger may have stopped firing">
       Silent {daysSinceLastRun}d
     </span>
   )
   return (
-    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+    <span className="inline-flex items-center justify-center whitespace-nowrap text-xs px-2.5 py-1 rounded-full font-semibold leading-none"
       style={{ color: '#94a3b8', backgroundColor: 'rgba(148,163,184,0.07)', border: '1px solid rgba(148,163,184,0.2)' }}
       title="Flow is enabled but has never triggered — check the trigger configuration">
       Never triggered
@@ -488,8 +495,8 @@ function FlowRow({ flow }: { flow: FlowHealth }) {
         {/* Enabled / Disabled */}
         <td className="px-4 py-3">
           {flow.enabled
-            ? <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: '#4ade80', backgroundColor: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)' }}>Enabled</span>
-            : <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: '#94a3b8', backgroundColor: 'rgba(148,163,184,0.07)', border: '1px solid rgba(148,163,184,0.2)' }}>Disabled</span>
+            ? <span className="inline-flex items-center justify-center whitespace-nowrap text-xs px-2.5 py-1 rounded-full font-semibold leading-none" style={{ color: '#4ade80', backgroundColor: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)' }}>Enabled</span>
+            : <span className="inline-flex items-center justify-center whitespace-nowrap text-xs px-2.5 py-1 rounded-full font-semibold leading-none" style={{ color: '#94a3b8', backgroundColor: 'rgba(148,163,184,0.07)', border: '1px solid rgba(148,163,184,0.2)' }}>Disabled</span>
           }
         </td>
 
@@ -1479,7 +1486,7 @@ export default function FlowsPage() {
                     onBlur={e =>  { e.currentTarget.style.borderColor = 'var(--border-mid)'; e.currentTarget.style.boxShadow = 'none' }}
                   />
                   <button
-                    onClick={() => fetchFlows(inputUrl.trim())}
+                    onClick={() => fetchFlows(inputUrl.trim(), solutionName || undefined)}
                     disabled={isLoading}
                     title="Refresh"
                     className="w-7 h-7 flex items-center justify-center rounded-lg transition-all disabled:opacity-30"

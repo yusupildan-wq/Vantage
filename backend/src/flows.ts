@@ -78,13 +78,21 @@ export interface FlowCompareEntry {
   driftReasons: string[]
 }
 
+export function normalizeDataverseId(value: string | null | undefined): string {
+  return (value ?? '').replace(/[{}]/g, '').toLowerCase()
+}
+
+function escapeODataString(value: string): string {
+  return value.replace(/'/g, "''")
+}
+
 async function getFlowIdsForSolution(client: AxiosInstance, solutionUniqueName: string): Promise<Set<string>> {
   const solResp = await client.get(
-    `/solutions?$filter=uniquename eq '${solutionUniqueName}'&$select=solutionid`
+    `/solutions?$filter=uniquename eq '${escapeODataString(solutionUniqueName)}'&$select=solutionid`
   )
   const solution = solResp.data.value?.[0]
   if (!solution) throw new Error(`Solution '${solutionUniqueName}' not found in this environment`)
-  const solutionId = (solution.solutionid as string).toLowerCase()
+  const solutionId = normalizeDataverseId(solution.solutionid)
   // Fetch all pages of workflow-type components and filter in JS — OData filter on
   // _solutionid_value is unreliable across Dataverse environments.
   const components = await fetchAllPages(
@@ -93,8 +101,9 @@ async function getFlowIdsForSolution(client: AxiosInstance, solutionUniqueName: 
   )
   return new Set(
     components
-      .filter((c: any) => ((c['_solutionid_value'] as string) ?? '').toLowerCase() === solutionId)
-      .map((c: any) => (c.objectid as string).toLowerCase())
+      .filter((c: any) => normalizeDataverseId(c['_solutionid_value']) === solutionId)
+      .map((c: any) => normalizeDataverseId(c.objectid))
+      .filter(Boolean)
   )
 }
 
@@ -104,10 +113,13 @@ async function getFlowList(
 ): Promise<{ name: string; enabled: boolean; modifiedOn: string }[]> {
   const flows = await fetchAllPages(
     client,
-    `/workflows?$filter=category eq 5&$select=workflowid,name,statecode,modifiedon&$orderby=name asc`
+    `/workflows?$filter=category eq 5&$select=workflowid,workflowidunique,name,statecode,modifiedon&$orderby=name asc`
   )
   const filtered = solutionFlowIds
-    ? flows.filter((f: any) => solutionFlowIds.has(f.workflowid.toLowerCase()))
+    ? flows.filter((f: any) =>
+        solutionFlowIds.has(normalizeDataverseId(f.workflowid)) ||
+        solutionFlowIds.has(normalizeDataverseId(f.workflowidunique))
+      )
     : flows
   return filtered.map((f: any) => ({
     name: f.name,
@@ -179,11 +191,14 @@ export async function compareFlows(
 export async function getFlowHealth(client: AxiosInstance, solutionUniqueName?: string): Promise<FlowHealth[]> {
   let flows = await fetchAllPages(
     client,
-    `/workflows?$filter=category eq 5&$select=workflowid,name,statecode,modifiedon,_ownerid_value&$orderby=name asc`
+    `/workflows?$filter=category eq 5&$select=workflowid,workflowidunique,name,statecode,modifiedon,_ownerid_value&$orderby=name asc`
   )
   if (solutionUniqueName) {
     const ids = await getFlowIdsForSolution(client, solutionUniqueName)
-    flows = flows.filter((f: any) => ids.has(f.workflowid.toLowerCase()))
+    flows = flows.filter((f: any) =>
+      ids.has(normalizeDataverseId(f.workflowid)) ||
+      ids.has(normalizeDataverseId(f.workflowidunique))
+    )
   }
   if (flows.length === 0) return []
 
