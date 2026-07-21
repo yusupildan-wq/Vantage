@@ -29,9 +29,10 @@ jobs:
 
       - name: Check release trigger
         id: check
+        env:
+          MSG: ${{ github.event.head_commit.message }}
+          INPUT: ${{ github.event.inputs.version }}
         run: |
-          MSG="${{ github.event.head_commit.message }}"
-          INPUT="${{ github.event.inputs.version }}"
           if [[ "$MSG" == *"[release]"* || -n "$INPUT" ]]; then
             echo "proceed=true" >> $GITHUB_OUTPUT
           else
@@ -41,8 +42,9 @@ jobs:
       - name: Resolve version tag
         id: version
         if: steps.check.outputs.proceed == 'true'
+        env:
+          INPUT: ${{ github.event.inputs.version }}
         run: |
-          INPUT="${{ github.event.inputs.version }}"
           if [ -n "$INPUT" ]; then
             TAG="$INPUT"
           else
@@ -154,6 +156,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check electron main-process syntax
+        shell: bash
+        run: node --check electron/main.js && node --check electron/preload.js
 
       - uses: actions/setup-node@v4
         with:
