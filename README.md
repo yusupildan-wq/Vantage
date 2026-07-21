@@ -42,7 +42,7 @@ Two ways to run Vantage — pick one from [**Releases**](../../releases/latest):
 **Desktop app (installer)**
 1. Download `Vantage Setup X.X.X.exe`
 2. Run it — installs with a Start Menu shortcut and system tray icon
-3. Auto-updates in the background and notifies you when a new version is ready
+3. To get a new version, download and run the latest installer again — it updates in place
 
 Credentials are encrypted and saved locally. You never enter them again.
 
@@ -61,7 +61,7 @@ AI features use the shared Vantage agent configured by your administrator. Provi
 | **Authentication** | MSAL `ConfidentialClientApplication` client credentials flow (Dataverse) · PAT Basic auth (Azure DevOps) |
 | **APIs consumed** | Microsoft Dataverse OData v9.2 · Azure DevOps Build REST API · Azure DevOps Git REST API |
 | **Security middleware** | Helmet (CSP, HSTS, X-Frame-Options) · CORS lockdown · HttpOnly local sessions · rate limiting · SSRF prevention · path traversal blocking |
-| **Distribution** | Portable Windows bundle with the official Node.js runtime · Electron desktop installer with auto-update · Docker multi-stage build · GitHub Actions CI/CD |
+| **Distribution** | Portable Windows bundle with the official Node.js runtime · Electron desktop installer · Docker multi-stage build · GitHub Actions CI/CD |
 | **Data** | JSON scan history · AES-256-GCM encrypted credentials · in-app first-launch setup wizard |
 
 ---
@@ -71,7 +71,7 @@ AI features use the shared Vantage agent configured by your administrator. Provi
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Portable bundle (Node.js runtime)  or  Electron app     │
-│  (same backend either way; Electron adds tray + auto-update) │
+│  (same backend either way; Electron adds a tray shell)   │
 │  ┌──────────────┐    ┌──────────────────────────────┐   │
 │  │  React SPA   │    │  Express API                 │   │
 │  │  (served     │───▶│  /api/*  (X-API-Key auth)    │   │
@@ -235,7 +235,7 @@ vantage/
 ├── backend/dist/             Compiled backend
 ├── Dockerfile                Multi-stage build (frontend → backend → Alpine runtime)
 ├── docker-compose.yml
-├── electron/                 Desktop app shell (main process, tray, auto-update, NSIS packaging)
+├── electron/                 Desktop app shell (main process, tray, NSIS packaging)
 ├── backend/
 │   └── src/
 │       ├── index.ts          Express server — security middleware, route wiring, static serving
