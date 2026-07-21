@@ -1,11 +1,16 @@
 import { AxiosInstance } from 'axios'
 import { ClientConfig, OptionSetCheckResult, OptionSetValueStatus } from './types'
 
+interface OptionSetValueInfo {
+  label: string
+  isHidden: boolean
+}
+
 async function fetchLocalOptionSet(
   client: AxiosInstance,
   entity: string,
   attribute: string
-): Promise<Map<number, string>> {
+): Promise<Map<number, OptionSetValueInfo>> {
   const base = `/EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${attribute}')`
   const types = [
     'Microsoft.Dynamics.CRM.PicklistAttributeMetadata',
@@ -16,6 +21,7 @@ async function fetchLocalOptionSet(
   let options: Array<{
     Value: number
     Label: { LocalizedLabels: Array<{ Label: string; LanguageCode: number }> }
+    IsHidden?: boolean
   }> | null = null
 
   for (const type of types) {
@@ -32,13 +38,13 @@ async function fetchLocalOptionSet(
 
   if (!options) throw new Error(`Could not read option set for ${entity}.${attribute}`)
 
-  const map = new Map<number, string>()
+  const map = new Map<number, OptionSetValueInfo>()
   for (const opt of options) {
     const label =
       opt.Label.LocalizedLabels.find(l => l.LanguageCode === 1033)?.Label ??
       opt.Label.LocalizedLabels[0]?.Label ??
       ''
-    map.set(opt.Value, label)
+    map.set(opt.Value, { label, isHidden: opt.IsHidden === true })
   }
   return map
 }
@@ -46,20 +52,21 @@ async function fetchLocalOptionSet(
 async function fetchGlobalOptionSet(
   client: AxiosInstance,
   name: string
-): Promise<Map<number, string>> {
+): Promise<Map<number, OptionSetValueInfo>> {
   const resp = await client.get(`/GlobalOptionSetDefinitions(Name='${name}')`)
   const options: Array<{
     Value: number
     Label: { LocalizedLabels: Array<{ Label: string; LanguageCode: number }> }
+    IsHidden?: boolean
   }> = resp.data.Options
 
-  const map = new Map<number, string>()
+  const map = new Map<number, OptionSetValueInfo>()
   for (const opt of options) {
     const label =
       opt.Label.LocalizedLabels.find(l => l.LanguageCode === 1033)?.Label ??
       opt.Label.LocalizedLabels[0]?.Label ??
       ''
-    map.set(opt.Value, label)
+    map.set(opt.Value, { label, isHidden: opt.IsHidden === true })
   }
   return map
 }
@@ -145,19 +152,27 @@ export async function checkOptionSets(
             ? await fetchLocalOptionSet(sourceClient, optionSet.entity!, optionSet.attribute!)
             : await fetchGlobalOptionSet(sourceClient, optionSet.name!)
 
-        values = Array.from(sourceValues.entries()).map(([value, label]) => ({
-          value,
-          expectedLabel: label,
-          currentLabel: currentValues.get(value) ?? null,
-          match: currentValues.get(value) === label,
-        }))
+        values = Array.from(sourceValues.entries()).map(([value, source]) => {
+          const current = currentValues.get(value)
+          return {
+            value,
+            expectedLabel: source.label,
+            currentLabel: current?.label ?? null,
+            match: current?.label === source.label,
+            isHidden: current?.isHidden ?? null,
+          }
+        })
       } else {
-        values = optionSet.values.map(v => ({
-          value: v.value,
-          expectedLabel: v.label,
-          currentLabel: currentValues.get(v.value) ?? null,
-          match: currentValues.get(v.value) === v.label,
-        }))
+        values = optionSet.values.map(v => {
+          const current = currentValues.get(v.value)
+          return {
+            value: v.value,
+            expectedLabel: v.label,
+            currentLabel: current?.label ?? null,
+            match: current?.label === v.label,
+            isHidden: current?.isHidden ?? null,
+          }
+        })
       }
 
       results.push({

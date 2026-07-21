@@ -34,6 +34,7 @@ export interface OptionSetValueStatus {
   expectedLabel: string
   currentLabel: string | null
   match: boolean
+  isHidden: boolean | null
 }
 
 export interface OptionSetCheckResult {

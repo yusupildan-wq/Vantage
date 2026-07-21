@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
 import { apiFetch } from '../api'
+import VisibilityBadge from './VisibilityBadge'
 
 export default function OptionSetComparison() {
   const [compareSourceUrl, setCompareSourceUrl] = useEnvironmentUrl()
@@ -217,10 +218,10 @@ export default function OptionSetComparison() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['Value', 'Source', 'Target', ''].map((h, j) => (
+                      {['Value', 'Source', 'Target', 'Visibility', ''].map((h, j) => (
                         <th
                           key={j}
-                          className={`px-4 py-2.5 font-semibold tracking-wider uppercase text-left ${j === 3 ? 'w-8' : j === 0 ? 'w-16' : ''}`}
+                          className={`px-4 py-2.5 font-semibold tracking-wider uppercase text-left ${j === 4 ? 'w-8' : j === 0 ? 'w-16' : ''}`}
                           style={{ color: 'var(--text-muted)' }}
                         >
                           {h}
@@ -234,6 +235,7 @@ export default function OptionSetComparison() {
                         <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--text-muted)' }}>{v.value}</td>
                         <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{v.label}</td>
                         <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>missing</td>
+                        <td className="px-4 py-2.5"><VisibilityBadge isHidden={v.isHidden ?? null} /></td>
                         <td className="px-4 py-2.5 text-center"><span style={{ color: '#f87171' }}>✗</span></td>
                       </tr>
                     ))}
@@ -243,6 +245,17 @@ export default function OptionSetComparison() {
                         <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--text-muted)' }}>{v.value}</td>
                         <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{v.sourceLabel}</td>
                         <td className="px-4 py-2.5" style={{ color: '#fbbf24' }}>{v.targetLabel}</td>
+                        <td className="px-4 py-2.5">
+                          {v.sourceHidden === v.targetHidden ? (
+                            <VisibilityBadge isHidden={v.sourceHidden ?? null} />
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <VisibilityBadge isHidden={v.sourceHidden ?? null} />
+                              <span style={{ color: 'var(--text-muted)' }}>→</span>
+                              <VisibilityBadge isHidden={v.targetHidden ?? null} />
+                            </div>
+                          )}
+                        </td>
                         <td className="px-4 py-2.5 text-center"><span style={{ color: '#fbbf24' }}>✗</span></td>
                       </tr>
                     ))}
@@ -252,13 +265,14 @@ export default function OptionSetComparison() {
                         <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--text-muted)' }}>{v.value}</td>
                         <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>missing</td>
                         <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{v.label}</td>
+                        <td className="px-4 py-2.5"><VisibilityBadge isHidden={v.isHidden ?? null} /></td>
                         <td className="px-4 py-2.5 text-center"><span style={{ color: '#60a5fa' }}>✗</span></td>
                       </tr>
                     ))}
 
                     {!diff.sourceOnly?.length && !diff.targetOnly?.length && !diff.different?.length && (
                       <tr>
-                        <td colSpan={4} className="px-4 py-2.5 text-center" style={{ color: '#4ade80' }}>
+                        <td colSpan={5} className="px-4 py-2.5 text-center" style={{ color: '#4ade80' }}>
                           ✓ All values match
                         </td>
                       </tr>

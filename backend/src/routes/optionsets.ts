@@ -173,19 +173,27 @@ optionSetsRouter.post('/compare', async (req: Request, res: Response) => {
         }
       }
       
-      const sourceValues = new Map(sourceResult.values.map(v => [v.value, v.currentLabel]))
-      const targetValues = new Map(targetResult.values.map(v => [v.value, v.currentLabel]))
-      
-      const sourceOnly = sourceResult.values.filter(v => !targetValues.has(v.value))
-      const targetOnly = targetResult.values.filter(v => !sourceValues.has(v.value))
-      const different = sourceResult.values.filter(v => {
-        const targetLabel = targetValues.get(v.value)
-        return targetLabel && targetLabel !== v.currentLabel
-      }).map(v => ({
-        value: v.value,
-        sourceLabel: v.currentLabel,
-        targetLabel: targetValues.get(v.value)
-      }))
+      const sourceByValue = new Map(sourceResult.values.map(v => [v.value, v]))
+      const targetByValue = new Map(targetResult.values.map(v => [v.value, v]))
+
+      const sourceOnly = sourceResult.values.filter(v => !targetByValue.has(v.value))
+      const targetOnly = targetResult.values.filter(v => !sourceByValue.has(v.value))
+      const different = sourceResult.values
+        .filter(v => targetByValue.has(v.value))
+        .map(v => {
+          const t = targetByValue.get(v.value)!
+          const labelDifferent = t.currentLabel !== null && t.currentLabel !== v.currentLabel
+          const hiddenDifferent = v.isHidden !== null && t.isHidden !== null && v.isHidden !== t.isHidden
+          if (!labelDifferent && !hiddenDifferent) return null
+          return {
+            value: v.value,
+            sourceLabel: v.currentLabel,
+            targetLabel: t.currentLabel,
+            sourceHidden: v.isHidden,
+            targetHidden: t.isHidden,
+          }
+        })
+        .filter((d): d is NonNullable<typeof d> => d !== null)
       
       return {
         displayName: sourceResult.displayName,

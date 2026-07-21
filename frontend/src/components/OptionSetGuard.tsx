@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { OptionSetCheckResult } from '../types'
 import { apiFetch } from '../api'
 import ConfirmActionDialog from './ConfirmActionDialog'
+import VisibilityBadge from './VisibilityBadge'
 
 interface Props {
   environmentUrl: string
@@ -264,10 +265,10 @@ export default function OptionSetGuard({ environmentUrl, columnLabels, apiEndpoi
                 <table className="w-full text-xs">
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['Value', labels.expected, labels.current, ''].map((h, j) => (
+                      {['Value', labels.expected, labels.current, 'Status', ''].map((h, j) => (
                         <th
                           key={j}
-                          className={`px-4 py-2.5 font-semibold tracking-wider uppercase text-left ${j === 3 ? 'w-8' : j === 0 ? 'w-16' : ''}`}
+                          className={`px-4 py-2.5 font-semibold tracking-wider uppercase text-left ${j === 4 ? 'w-8' : j === 0 ? 'w-16' : ''}`}
                           style={{ color: 'var(--text-muted)' }}
                         >
                           {h}
@@ -288,6 +289,9 @@ export default function OptionSetGuard({ environmentUrl, columnLabels, apiEndpoi
                           style={{ color: v.currentLabel === null ? 'var(--text-muted)' : v.match ? 'var(--text-secondary)' : '#fbbf24', fontStyle: v.currentLabel === null ? 'italic' : undefined }}
                         >
                           {v.currentLabel ?? 'missing'}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <VisibilityBadge isHidden={v.isHidden} />
                         </td>
                         <td className="px-4 py-2.5 text-center">
                           {v.match
