@@ -32,13 +32,17 @@ jobs:
           npm run build
           npm audit --omit=dev --audit-level=high
 
-      - name: Build frontend
+      - name: Test and build frontend
         working-directory: frontend
         run: |
           npm ci
           printf 'VITE_API_URL=\nVITE_API_KEY=\n' > .env
+          npm test
           npm run build
           npm audit --omit=dev --audit-level=high
+
+      - name: Check electron main-process syntax
+        run: node --check electron/main.js && node --check electron/preload.js
 
       - name: Validate Docker image
         run: docker build -t vantage:ci .
