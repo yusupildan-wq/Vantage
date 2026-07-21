@@ -7,6 +7,7 @@ const MAX_EVENTS = 500
 
 export type AuditAction =
   | 'option_set_restore'
+  | 'option_set_visibility_sync'
   | 'connection_ref_auto_fix'
   | 'pipeline_cancel'
   | 'pipeline_retry'

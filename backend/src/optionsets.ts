@@ -118,6 +118,44 @@ async function upsertGlobalOptionValue(
   })
 }
 
+// NOTE: IsHidden as a write parameter on UpdateOptionValue is unverified against a
+// live Dataverse tenant — it mirrors the read-side field name (confirmed accurate)
+// but the write path itself has not been tested. Test against a non-production
+// environment before relying on this.
+async function setLocalOptionVisibility(
+  client: AxiosInstance,
+  entity: string,
+  attribute: string,
+  value: number,
+  label: string,
+  isHidden: boolean
+): Promise<void> {
+  await client.post('/UpdateOptionValue', {
+    EntityLogicalName: entity,
+    AttributeLogicalName: attribute,
+    Value: value,
+    Label: makeLabel(label),
+    IsHidden: isHidden,
+    MergeLabels: false,
+  })
+}
+
+async function setGlobalOptionVisibility(
+  client: AxiosInstance,
+  name: string,
+  value: number,
+  label: string,
+  isHidden: boolean
+): Promise<void> {
+  await client.post('/UpdateOptionValue', {
+    OptionSetName: name,
+    Value: value,
+    Label: makeLabel(label),
+    IsHidden: isHidden,
+    MergeLabels: false,
+  })
+}
+
 async function publishEntity(client: AxiosInstance, entity: string): Promise<void> {
   await client.post('/PublishXml', {
     ParameterXml: `<importexportxml><entities><entity>${entity}</entity></entities></importexportxml>`,
@@ -253,4 +291,76 @@ export async function restoreOptionSets(
 
   const finalResults = await checkOptionSets(client, config, sourceClient)
   return { restored, failed, details: finalResults }
+}
+
+export async function syncOptionSetVisibility(
+  sourceClient: AxiosInstance,
+  sourceConfig: ClientConfig,
+  targetClient: AxiosInstance,
+  targetConfig: ClientConfig
+): Promise<{ updated: number; failed: number; skipped: number }> {
+  const sourceResults = await checkOptionSets(sourceClient, sourceConfig)
+  const targetResults = await checkOptionSets(targetClient, targetConfig)
+
+  let updated = 0
+  let failed = 0
+  let skipped = 0
+
+  const entitiesToPublish = new Set<string>()
+  const globalsToPublish = new Set<string>()
+
+  for (const targetOptionSet of targetConfig.optionSets) {
+    const sourceResult = sourceResults.find(r => r.displayName === targetOptionSet.displayName)
+    const targetResult = targetResults.find(r => r.displayName === targetOptionSet.displayName)
+    if (!sourceResult || !targetResult || sourceResult.status === 'error' || targetResult.status === 'error') {
+      skipped++
+      continue
+    }
+
+    const sourceByValue = new Map(sourceResult.values.map(v => [v.value, v]))
+
+    for (const targetValue of targetResult.values) {
+      const sourceValue = sourceByValue.get(targetValue.value)
+      // Skip when either side's visibility is unknown, the value doesn't exist in
+      // the source, the value doesn't yet exist in the target, or visibility already matches.
+      if (!sourceValue || sourceValue.isHidden === null || targetValue.isHidden === null) { skipped++; continue }
+      if (targetValue.currentLabel === null) { skipped++; continue }
+      if (sourceValue.isHidden === targetValue.isHidden) continue
+
+      try {
+        if (targetOptionSet.type === 'local') {
+          await setLocalOptionVisibility(
+            targetClient,
+            targetOptionSet.entity!,
+            targetOptionSet.attribute!,
+            targetValue.value,
+            targetValue.currentLabel,
+            sourceValue.isHidden
+          )
+          entitiesToPublish.add(targetOptionSet.entity!)
+        } else {
+          await setGlobalOptionVisibility(
+            targetClient,
+            targetOptionSet.name!,
+            targetValue.value,
+            targetValue.currentLabel,
+            sourceValue.isHidden
+          )
+          globalsToPublish.add(targetOptionSet.name!)
+        }
+        updated++
+      } catch {
+        failed++
+      }
+    }
+  }
+
+  for (const entity of entitiesToPublish) {
+    try { await publishEntity(targetClient, entity) } catch { /* non-fatal */ }
+  }
+  for (const name of globalsToPublish) {
+    try { await publishGlobalOptionSet(targetClient, name) } catch { /* non-fatal */ }
+  }
+
+  return { updated, failed, skipped }
 }

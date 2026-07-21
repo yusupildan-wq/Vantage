@@ -5,7 +5,7 @@ import axios from 'axios'
 import { ClientConfig } from '../types'
 import { getClientConfigDir } from '../runtimePaths'
 import { makeDataverseClient, validateEnvironmentUrl } from '../auth'
-import { checkOptionSets, restoreOptionSets } from '../optionsets'
+import { checkOptionSets, restoreOptionSets, syncOptionSetVisibility } from '../optionsets'
 import { parsePastedContent, comparePastedWithDev } from '../pastecompare'
 import { recordAuditEvent } from '../audit'
 
@@ -169,38 +169,38 @@ optionSetsRouter.post('/compare', async (req: Request, res: Response) => {
           type: sourceResult.type,
           sourceOnly: sourceResult.values,
           targetOnly: [],
-          different: []
+          values: []
         }
       }
-      
+
       const sourceByValue = new Map(sourceResult.values.map(v => [v.value, v]))
       const targetByValue = new Map(targetResult.values.map(v => [v.value, v]))
 
       const sourceOnly = sourceResult.values.filter(v => !targetByValue.has(v.value))
       const targetOnly = targetResult.values.filter(v => !sourceByValue.has(v.value))
-      const different = sourceResult.values
+      // Every value present on both sides — labels and visibility, matched or not.
+      const values = sourceResult.values
         .filter(v => targetByValue.has(v.value))
         .map(v => {
           const t = targetByValue.get(v.value)!
-          const labelDifferent = t.currentLabel !== null && t.currentLabel !== v.currentLabel
-          const hiddenDifferent = v.isHidden !== null && t.isHidden !== null && v.isHidden !== t.isHidden
-          if (!labelDifferent && !hiddenDifferent) return null
+          const labelMatch = t.currentLabel === v.currentLabel
+          const hiddenMatch = v.isHidden === null || t.isHidden === null || v.isHidden === t.isHidden
           return {
             value: v.value,
             sourceLabel: v.currentLabel,
             targetLabel: t.currentLabel,
             sourceHidden: v.isHidden,
             targetHidden: t.isHidden,
+            match: labelMatch && hiddenMatch,
           }
         })
-        .filter((d): d is NonNullable<typeof d> => d !== null)
-      
+
       return {
         displayName: sourceResult.displayName,
         type: sourceResult.type,
         sourceOnly,
         targetOnly,
-        different
+        values
       }
     })
     
@@ -213,6 +213,62 @@ optionSetsRouter.post('/compare', async (req: Request, res: Response) => {
     const detail = axios.isAxiosError(err)
       ? (err.response?.data?.error?.message ?? err.message)
       : (err instanceof Error ? err.message : 'Failed')
+    res.status(500).json({ error: detail })
+  }
+})
+
+optionSetsRouter.post('/sync-visibility', async (req: Request, res: Response) => {
+  const { sourceUrl, targetUrl, safetyAcknowledged } = req.body
+  if (!sourceUrl || !targetUrl || typeof sourceUrl !== 'string' || typeof targetUrl !== 'string') {
+    res.status(400).json({ error: 'sourceUrl and targetUrl are required' })
+    return
+  }
+  if (safetyAcknowledged !== true) {
+    res.status(400).json({ error: 'Safety acknowledgement is required before syncing visibility.' })
+    return
+  }
+  try { validateEnvironmentUrl(sourceUrl); validateEnvironmentUrl(targetUrl) } catch (e) {
+    res.status(400).json({ error: (e as Error).message }); return
+  }
+
+  const sourceConfig = loadClientConfig(sourceUrl)
+  const targetConfig = loadClientConfig(targetUrl)
+  if (!sourceConfig || !targetConfig) {
+    res.status(404).json({ error: 'No client config found for one or both environments' })
+    return
+  }
+
+  try {
+    const sourceClient = await makeDataverseClient(sourceUrl)
+    const targetClient = await makeDataverseClient(targetUrl)
+    const result = await syncOptionSetVisibility(sourceClient, sourceConfig, targetClient, targetConfig)
+    recordAuditEvent({
+      action: 'option_set_visibility_sync',
+      targetSystem: 'Dataverse',
+      target: targetUrl,
+      status: 'success',
+      summary: `Synced visibility for ${result.updated} option set value(s) from ${sourceConfig.name} to ${targetConfig.name}.`,
+      metadata: {
+        sourceEnvironment: sourceUrl,
+        targetEnvironment: targetUrl,
+        updated: result.updated,
+        failed: result.failed,
+        skipped: result.skipped,
+      },
+    })
+    res.json(result)
+  } catch (err) {
+    const detail = axios.isAxiosError(err)
+      ? (err.response?.data?.error?.message ?? err.message)
+      : (err instanceof Error ? err.message : 'Failed')
+    recordAuditEvent({
+      action: 'option_set_visibility_sync',
+      targetSystem: 'Dataverse',
+      target: targetUrl,
+      status: 'failure',
+      summary: detail,
+      metadata: { sourceEnvironment: sourceUrl, targetEnvironment: targetUrl },
+    })
     res.status(500).json({ error: detail })
   }
 })

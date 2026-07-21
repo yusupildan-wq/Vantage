@@ -8,6 +8,7 @@ type SystemFilter = 'all' | 'Dataverse' | 'Azure DevOps'
 
 const ACTION_LABEL: Record<AuditAction, string> = {
   option_set_restore: 'Option Set Restore',
+  option_set_visibility_sync: 'Option Set Visibility Sync',
   connection_ref_auto_fix: 'Connection Ref Auto-Fix',
   pipeline_cancel: 'Pipeline Cancel',
   pipeline_retry: 'Pipeline Retry',

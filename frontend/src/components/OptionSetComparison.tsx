@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useEnvironmentUrl } from '../hooks/useEnvironmentUrl'
 import { apiFetch } from '../api'
 import VisibilityBadge from './VisibilityBadge'
+import ConfirmActionDialog from './ConfirmActionDialog'
 
 export default function OptionSetComparison() {
   const [compareSourceUrl, setCompareSourceUrl] = useEnvironmentUrl()
@@ -9,6 +10,10 @@ export default function OptionSetComparison() {
   const [comparisonResults, setComparisonResults] = useState<any>(null)
   const [isComparing, setIsComparing] = useState(false)
   const [comparisonError, setComparisonError] = useState<string | null>(null)
+  const [isSyncingVisibility, setIsSyncingVisibility] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
+  const [confirmSyncOpen, setConfirmSyncOpen] = useState(false)
+  const [showMismatchOnly, setShowMismatchOnly] = useState(false)
 
   const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
@@ -16,6 +21,7 @@ export default function OptionSetComparison() {
     setIsComparing(true)
     setComparisonError(null)
     setComparisonResults(null)
+    setSyncMessage(null)
     try {
       const resp = await apiFetch(`${apiUrl}/api/optionsets/compare`, {
         method: 'POST',
@@ -35,6 +41,46 @@ export default function OptionSetComparison() {
       setComparisonError(err instanceof Error ? err.message : 'Failed to compare option sets')
     } finally {
       setIsComparing(false)
+    }
+  }
+
+  function hasDiff(diff: any): boolean {
+    return diff.sourceOnly?.length > 0 || diff.targetOnly?.length > 0 || diff.values?.some((v: any) => !v.match)
+  }
+
+  const visibilityMismatchCount = (comparisonResults?.differences ?? []).reduce(
+    (total: number, d: any) =>
+      total + (d.values?.filter((v: any) =>
+        v.sourceHidden !== null && v.targetHidden !== null && v.sourceHidden !== v.targetHidden
+      ).length ?? 0),
+    0
+  )
+
+  async function handleSyncVisibility() {
+    setIsSyncingVisibility(true)
+    setComparisonError(null)
+    try {
+      const resp = await apiFetch(`${apiUrl}/api/optionsets/sync-visibility`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceUrl: compareSourceUrl.trim(),
+          targetUrl: compareTargetUrl.trim(),
+          safetyAcknowledged: true,
+        }),
+      })
+      if (!resp.ok) {
+        const data = await resp.json()
+        throw new Error(data.error ?? 'Visibility sync failed')
+      }
+      const data = await resp.json()
+      setSyncMessage(`Synced ${data.updated} value(s) to match the source's visibility.${data.failed > 0 ? ` ${data.failed} failed.` : ''}`)
+      setConfirmSyncOpen(false)
+      await handleCompare()
+    } catch (err) {
+      setComparisonError(err instanceof Error ? err.message : 'Failed to sync visibility')
+    } finally {
+      setIsSyncingVisibility(false)
     }
   }
 
@@ -121,6 +167,15 @@ export default function OptionSetComparison() {
             {comparisonError}
           </div>
         )}
+
+        {syncMessage && (
+          <div
+            className="rounded-lg px-4 py-3 text-xs"
+            style={{ backgroundColor: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.15)', color: '#4ade80' }}
+          >
+            {syncMessage}
+          </div>
+        )}
       </div>
 
       {comparisonResults && (
@@ -130,7 +185,7 @@ export default function OptionSetComparison() {
             className="rounded-lg p-6 mt-6"
             style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)' }}
           >
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
               <div>
                 <h5 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
                   Comparison Summary
@@ -139,12 +194,26 @@ export default function OptionSetComparison() {
                   {comparisonResults.sourceName || 'Source'} → {comparisonResults.targetName || 'Target'}
                 </p>
               </div>
+              {visibilityMismatchCount > 0 && (
+                <button
+                  onClick={() => setConfirmSyncOpen(true)}
+                  disabled={isSyncingVisibility}
+                  className="px-4 py-2 text-xs font-semibold rounded-lg transition-all disabled:opacity-40"
+                  style={{
+                    backgroundColor: 'rgba(245,158,11,0.1)',
+                    color: '#fbbf24',
+                    border: '1px solid rgba(245,158,11,0.25)',
+                  }}
+                >
+                  {isSyncingVisibility ? 'Syncing…' : `Sync Visibility to Target (${visibilityMismatchCount})`}
+                </button>
+              )}
             </div>
 
             <div className="grid grid-cols-4 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold mb-1" style={{ color: '#fbbf24' }}>
-                  {comparisonResults.differences?.filter((d: any) => d.different?.length > 0).length || 0}
+                  {comparisonResults.differences?.filter((d: any) => d.values?.some((v: any) => !v.match)).length || 0}
                 </div>
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Different</p>
               </div>
@@ -162,9 +231,7 @@ export default function OptionSetComparison() {
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold mb-1" style={{ color: '#4ade80' }}>
-                  {comparisonResults.differences?.filter((d: any) =>
-                    !d.sourceOnly?.length && !d.targetOnly?.length && !d.different?.length
-                  ).length || 0}
+                  {comparisonResults.differences?.filter((d: any) => !hasDiff(d)).length || 0}
                 </div>
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Match</p>
               </div>
@@ -172,8 +239,30 @@ export default function OptionSetComparison() {
           </div>
 
           {/* Detailed Results */}
+          <div className="flex items-center justify-between">
+            <h5 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+              Detailed Results
+            </h5>
+            <button
+              onClick={() => setShowMismatchOnly(v => !v)}
+              className="px-3 py-2 text-xs font-medium rounded-lg transition-all"
+              style={showMismatchOnly
+                ? { backgroundColor: 'rgba(245,158,11,0.07)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.22)' }
+                : { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-bright)' }}
+            >
+              {showMismatchOnly ? 'Show All' : 'See Less'}
+            </button>
+          </div>
           <div className="space-y-3">
-            {comparisonResults.differences?.map((diff: any, i: number) => (
+            {showMismatchOnly && !comparisonResults.differences?.some((diff: any) => hasDiff(diff)) && (
+              <div
+                className="rounded-lg px-4 py-6 text-center text-sm"
+                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-mid)', color: '#4ade80' }}
+              >
+                ✓ All option sets match — nothing to show. Click "Show All" to see full detail.
+              </div>
+            )}
+            {comparisonResults.differences?.filter((diff: any) => !showMismatchOnly || hasDiff(diff)).map((diff: any, i: number) => (
               <div
                 key={i}
                 className="rounded-lg overflow-hidden"
@@ -204,7 +293,7 @@ export default function OptionSetComparison() {
                     )}
                   </div>
 
-                  {diff.sourceOnly?.length > 0 || diff.targetOnly?.length > 0 || diff.different?.length > 0 ? (
+                  {diff.sourceOnly?.length > 0 || diff.targetOnly?.length > 0 || diff.values?.some((v: any) => !v.match) ? (
                     <span className="text-xs font-medium px-2.5 py-0.5 rounded-full" style={{ color: '#fbbf24', backgroundColor: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)' }}>
                       Different
                     </span>
@@ -218,10 +307,10 @@ export default function OptionSetComparison() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['Value', 'Source', 'Target', 'Visibility', ''].map((h, j) => (
+                      {['Value', 'Source', 'Target', 'Source Visibility', 'Target Visibility', ''].map((h, j) => (
                         <th
                           key={j}
-                          className={`px-4 py-2.5 font-semibold tracking-wider uppercase text-left ${j === 4 ? 'w-8' : j === 0 ? 'w-16' : ''}`}
+                          className={`px-4 py-2.5 font-semibold tracking-wider uppercase text-left ${j === 5 ? 'w-8' : j === 0 ? 'w-16' : ''}`}
                           style={{ color: 'var(--text-muted)' }}
                         >
                           {h}
@@ -233,30 +322,26 @@ export default function OptionSetComparison() {
                     {diff.sourceOnly?.map((v: any, j: number) => (
                       <tr key={`source-${j}`} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--text-muted)' }}>{v.value}</td>
-                        <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{v.label}</td>
+                        <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{v.currentLabel}</td>
                         <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>missing</td>
                         <td className="px-4 py-2.5"><VisibilityBadge isHidden={v.isHidden ?? null} /></td>
+                        <td className="px-4 py-2.5"><VisibilityBadge isHidden={null} /></td>
                         <td className="px-4 py-2.5 text-center"><span style={{ color: '#f87171' }}>✗</span></td>
                       </tr>
                     ))}
 
-                    {diff.different?.map((v: any, j: number) => (
-                      <tr key={`diff-${j}`} style={{ borderBottom: '1px solid var(--border)' }}>
+                    {(showMismatchOnly ? diff.values?.filter((v: any) => !v.match) : diff.values)?.map((v: any, j: number) => (
+                      <tr key={`value-${j}`} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--text-muted)' }}>{v.value}</td>
                         <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{v.sourceLabel}</td>
-                        <td className="px-4 py-2.5" style={{ color: '#fbbf24' }}>{v.targetLabel}</td>
-                        <td className="px-4 py-2.5">
-                          {v.sourceHidden === v.targetHidden ? (
-                            <VisibilityBadge isHidden={v.sourceHidden ?? null} />
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <VisibilityBadge isHidden={v.sourceHidden ?? null} />
-                              <span style={{ color: 'var(--text-muted)' }}>→</span>
-                              <VisibilityBadge isHidden={v.targetHidden ?? null} />
-                            </div>
-                          )}
+                        <td className="px-4 py-2.5" style={{ color: v.match ? 'var(--text-secondary)' : '#fbbf24' }}>{v.targetLabel}</td>
+                        <td className="px-4 py-2.5"><VisibilityBadge isHidden={v.sourceHidden ?? null} /></td>
+                        <td className="px-4 py-2.5"><VisibilityBadge isHidden={v.targetHidden ?? null} /></td>
+                        <td className="px-4 py-2.5 text-center">
+                          {v.match
+                            ? <span style={{ color: '#4ade80' }}>✓</span>
+                            : <span style={{ color: '#fbbf24' }}>✗</span>}
                         </td>
-                        <td className="px-4 py-2.5 text-center"><span style={{ color: '#fbbf24' }}>✗</span></td>
                       </tr>
                     ))}
 
@@ -264,16 +349,17 @@ export default function OptionSetComparison() {
                       <tr key={`target-${j}`} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--text-muted)' }}>{v.value}</td>
                         <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>missing</td>
-                        <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{v.label}</td>
+                        <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{v.currentLabel}</td>
+                        <td className="px-4 py-2.5"><VisibilityBadge isHidden={null} /></td>
                         <td className="px-4 py-2.5"><VisibilityBadge isHidden={v.isHidden ?? null} /></td>
                         <td className="px-4 py-2.5 text-center"><span style={{ color: '#60a5fa' }}>✗</span></td>
                       </tr>
                     ))}
 
-                    {!diff.sourceOnly?.length && !diff.targetOnly?.length && !diff.different?.length && (
+                    {!diff.sourceOnly?.length && !diff.targetOnly?.length && !diff.values?.length && (
                       <tr>
-                        <td colSpan={5} className="px-4 py-2.5 text-center" style={{ color: '#4ade80' }}>
-                          ✓ All values match
+                        <td colSpan={6} className="px-4 py-2.5 text-center" style={{ color: 'var(--text-muted)' }}>
+                          No values configured for this option set
                         </td>
                       </tr>
                     )}
@@ -284,6 +370,23 @@ export default function OptionSetComparison() {
           </div>
         </div>
       )}
+
+      <ConfirmActionDialog
+        open={confirmSyncOpen}
+        title="Sync Visibility to Target"
+        tone="warning"
+        confirmLabel="Sync Visibility"
+        isWorking={isSyncingVisibility}
+        body="This will update the Hidden/Shown state of option values in the target environment to match the source. Labels are not changed."
+        checkLabel="I understand this will update option value visibility in Dataverse."
+        details={[
+          { label: 'Source', value: compareSourceUrl },
+          { label: 'Target', value: compareTargetUrl },
+          { label: 'Mismatched Values', value: `${visibilityMismatchCount}` },
+        ]}
+        onCancel={() => setConfirmSyncOpen(false)}
+        onConfirm={handleSyncVisibility}
+      />
     </div>
   )
 }
