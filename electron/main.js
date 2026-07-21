@@ -99,8 +99,8 @@ function rebuildTrayMenu() {
         app.isQuitting = true
         app.quit()
       },
-    }
-  )
+    },
+  ]
 
   tray.setContextMenu(Menu.buildFromTemplate(items))
 }
