@@ -1,7 +1,6 @@
 'use strict'
 
-const { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, shell, Notification, dialog, ipcMain } = require('electron')
-const { autoUpdater } = require('electron-updater')
+const { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, shell } = require('electron')
 const path = require('path')
 const net = require('net')
 const fs = require('fs')
@@ -11,10 +10,6 @@ const BACKEND_URL = `http://127.0.0.1:${PORT}`
 
 let mainWindow = null
 let tray = null
-let updateReady = false
-let updateChecking = false
-let updateDownloadedVersion = null
-let manualUpdateCheck = false
 
 // Poll until the backend HTTP port accepts connections.
 function waitForBackend(timeoutMs = 20000) {
@@ -58,155 +53,6 @@ function startBackend() {
   require(entry)
 }
 
-// ── IPC ───────────────────────────────────────────────────────────────────────
-
-function sendUpdateStatus(payload) {
-  try {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('update-status', payload)
-    }
-  } catch {}
-}
-
-ipcMain.on('install-update', () => {
-  app.isQuitting = true
-  autoUpdater.quitAndInstall()
-})
-
-// ── Auto-update ───────────────────────────────────────────────────────────────
-
-function setupAutoUpdater() {
-  autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
-
-  autoUpdater.on('checking-for-update', () => {
-    updateChecking = true
-    rebuildTrayMenu()
-    sendUpdateStatus({ type: 'checking' })
-  })
-
-  autoUpdater.on('update-available', (info) => {
-    manualUpdateCheck = false
-    updateChecking = false
-    rebuildTrayMenu()
-    sendUpdateStatus({ type: 'downloading', version: info.version })
-    new Notification({
-      title: 'Vantage update found',
-      body: `Downloading version ${info.version}.`,
-    }).show()
-  })
-
-  autoUpdater.on('update-not-available', (info) => {
-    updateChecking = false
-    rebuildTrayMenu()
-    sendUpdateStatus({ type: 'current', version: info.version })
-    if (manualUpdateCheck) {
-      manualUpdateCheck = false
-      showWindow()
-      dialog.showMessageBox(mainWindow, {
-        type: 'info',
-        title: 'No update found',
-        message: 'Vantage is already up to date.',
-      }).catch(() => {})
-    }
-  })
-
-  autoUpdater.on('download-progress', (progress) => {
-    updateChecking = false
-    rebuildTrayMenu()
-    sendUpdateStatus({ type: 'progress', percent: Math.round(progress.percent) })
-  })
-
-  autoUpdater.on('update-downloaded', (info) => {
-    manualUpdateCheck = false
-    updateReady = true
-    updateChecking = false
-    updateDownloadedVersion = info.version
-    rebuildTrayMenu()
-    sendUpdateStatus({ type: 'ready', version: info.version })
-    new Notification({
-      title: 'Vantage update ready',
-      body: `Version ${info.version} is ready. Restart Vantage to install it.`,
-    }).show()
-    promptRestartToUpdate(info.version)
-  })
-
-  autoUpdater.on('error', (err) => {
-    const wasManual = manualUpdateCheck
-    manualUpdateCheck = false
-    updateChecking = false
-    rebuildTrayMenu()
-    sendUpdateStatus({ type: 'error', message: err?.message ?? 'Unknown error' })
-    console.error('[updater]', err.message)
-    if (wasManual) {
-      showWindow()
-      dialog.showMessageBox(mainWindow, {
-        type: 'error',
-        title: 'Update check failed',
-        message: err?.message ?? 'Could not reach update server.',
-      }).catch(() => {})
-    }
-  })
-
-  // Check on startup, then every 4 hours.
-  checkForUpdates(false)
-  setInterval(() => checkForUpdates(false), 4 * 60 * 60 * 1000)
-}
-
-function checkForUpdates(manual = false) {
-  if (!app.isPackaged) {
-    if (manual) {
-      showWindow()
-      dialog.showMessageBox(mainWindow, {
-        type: 'info',
-        title: 'Updates unavailable in development',
-        message: 'Auto-updates only run in the installed Vantage desktop app.',
-      }).catch(() => {})
-    }
-    return
-  }
-
-  if (updateReady) {
-    promptRestartToUpdate(updateDownloadedVersion)
-    return
-  }
-
-  // Manual checks always proceed — reset any stuck checking state
-  if (manual) updateChecking = false
-  if (updateChecking) return
-
-  manualUpdateCheck = manual
-  updateChecking = true
-  autoUpdater.checkForUpdates()
-    .catch((err) => {
-      manualUpdateCheck = false
-      updateChecking = false
-      rebuildTrayMenu()
-    })
-}
-
-function promptRestartToUpdate(version) {
-  showWindow()
-  const detail = version
-    ? `Version ${version} has been downloaded and will install after restart.`
-    : 'An update has been downloaded and will install after restart.'
-
-  dialog.showMessageBox(mainWindow, {
-    type: 'info',
-    buttons: ['Restart Now', 'Later'],
-    defaultId: 0,
-    cancelId: 1,
-    title: 'Vantage update ready',
-    message: 'Restart Vantage to install the update?',
-    detail,
-  }).then(({ response }) => {
-    if (response === 0) {
-      app.isQuitting = true
-      autoUpdater.quitAndInstall()
-    }
-  }).catch(() => {})
-}
-
 // ── Tray ──────────────────────────────────────────────────────────────────────
 
 function createTray() {
@@ -236,23 +82,6 @@ function rebuildTrayMenu() {
   const launchAtLogin = app.getLoginItemSettings().openAtLogin
   const items = [
     { label: 'Open Vantage', click: showWindow },
-    { type: 'separator' },
-  ]
-
-  if (updateReady) {
-    items.push({
-      label: '↻ Restart to Update',
-      click: () => promptRestartToUpdate(updateDownloadedVersion),
-    })
-    items.push({ type: 'separator' })
-  }
-
-  items.push(
-    {
-      label: updateChecking ? 'Checking for Updates...' : 'Check for Updates',
-      enabled: !updateChecking,
-      click: () => checkForUpdates(true),
-    },
     { type: 'separator' },
     {
       label: 'Launch at startup',
@@ -357,11 +186,6 @@ app.whenReady().then(async () => {
   }
 
   createWindow()
-
-  // Check for updates only in the packaged app, not during development.
-  if (app.isPackaged) {
-    setupAutoUpdater()
-  }
 })
 
 // Keep the process alive via the tray; never quit on window-all-closed.

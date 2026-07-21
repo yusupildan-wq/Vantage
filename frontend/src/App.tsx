@@ -14,7 +14,6 @@ import DiagnosticsPage from './pages/DiagnosticsPage'
 import AuditLogPage from './pages/AuditLogPage'
 import SettingsPage from './pages/SettingsPage'
 import SetupPage from './pages/SetupPage'
-import UpdateBanner from './components/UpdateBanner'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -79,7 +78,6 @@ export default function App() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-base)' }}>
       <Header />
-      <UpdateBanner />
       <BackendBanner />
       <Routes>
         <Route path="/"            element={<DashboardPage />} />

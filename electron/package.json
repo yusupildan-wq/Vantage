@@ -7,9 +7,6 @@
     "start": "electron .",
     "dist": "electron-builder --win --publish never"
   },
-  "dependencies": {
-    "electron-updater": "^6.1.0"
-  },
   "devDependencies": {
     "electron": "^31.7.7",
     "electron-builder": "^24.13.3"
@@ -52,11 +49,6 @@
         "filter": ["**/*"]
       }
     ],
-    "publish": {
-      "provider": "github",
-      "owner": "yusupildan-wq",
-      "repo": "Vantage"
-    },
     "win": {
       "target": [
         {
